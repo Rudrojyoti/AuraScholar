@@ -22,7 +22,7 @@ const storeDocument = async (collectionName, chunks) => {
   });
 
   // Generate embeddings for all chunks using text-embedding-004
-  const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+  const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
   
   const embeddings = [];
   // Generating embeddings sequentially or using Promise.all
@@ -58,7 +58,7 @@ const askQuestion = async (collectionName, question) => {
   const safeName = collectionName.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 63);
   
   // 1. Embed the question
-  const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+  const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
   const questionEmbeddingResponse = await embeddingModel.embedContent(question);
   const questionEmbedding = questionEmbeddingResponse.embedding.values;
 
@@ -80,7 +80,7 @@ const askQuestion = async (collectionName, question) => {
   const prompt = `Context from paper:\n${contextText}\n\nQuestion: ${question}`;
 
   const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash",
+    model: "gemini-2.5-flash",
     systemInstruction: `You are an expert AI research assistant. You answer questions strictly based on the provided paper context. If the answer is not in the context, say "I don't know based on the provided paper." Do not hallucinate.`
   });
   
@@ -101,7 +101,7 @@ const generateQuickSummary = async (chunks) => {
   const sampleText = chunks.slice(0, 3).join('\n\n');
   const prompt = `Analyze the provided abstract/introduction of the research paper and provide a JSON response with two keys: "summary" (a 2-3 sentence overview) and "methodology" (a 1-2 sentence description of their approach). Here is the text:\n\n${sampleText}`;
   
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
   
   const result = await model.generateContent({
     contents: [{ role: "user", parts: [{ text: prompt }] }],
