@@ -1,10 +1,10 @@
 const { ChromaClient } = require('chromadb');
-const OpenAI = require('openai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const config = require('../config');
 
 // Initialize clients
 const chroma = new ChromaClient({ path: config.chroma.url });
-const openai = new OpenAI({ apiKey: config.openai.apiKey });
+const genAI = new GoogleGenerativeAI(config.gemini.apiKey);
 
 /**
  * Stores text chunks into ChromaDB with embeddings
@@ -12,7 +12,7 @@ const openai = new OpenAI({ apiKey: config.openai.apiKey });
  * @param {string[]} chunks - Array of text chunks
  */
 const storeDocument = async (collectionName, chunks) => {
-  // Ensure a clean collection name (Chroma has naming restrictions: 3-63 chars, alphanumeric/hyphens/underscores)
+  // Ensure a clean collection name
   const safeName = collectionName.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 63);
   
   // Get or create the collection
@@ -21,13 +21,19 @@ const storeDocument = async (collectionName, chunks) => {
     metadata: { "description": "Paper chunks" }
   });
 
-  // Generate embeddings for all chunks
-  const response = await openai.embeddings.create({
-    model: 'text-embedding-ada-002',
-    input: chunks,
-  });
+  // Generate embeddings for all chunks using text-embedding-004
+  const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+  
+  const embeddings = [];
+  // Generating embeddings sequentially or using Promise.all
+  // Note: For large documents, we should chunk this to avoid rate limits
+  const embedPromises = chunks.map(chunk => 
+    embeddingModel.embedContent(chunk)
+  );
+  
+  const responses = await Promise.all(embedPromises);
+  responses.forEach(res => embeddings.push(res.embedding.values));
 
-  const embeddings = response.data.map(item => item.embedding);
   const ids = chunks.map((_, idx) => `chunk_${idx}`);
   const metadatas = chunks.map((_, idx) => ({ source: safeName, chunkIndex: idx }));
 
@@ -52,11 +58,9 @@ const askQuestion = async (collectionName, question) => {
   const safeName = collectionName.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 63);
   
   // 1. Embed the question
-  const questionEmbeddingResponse = await openai.embeddings.create({
-    model: 'text-embedding-ada-002',
-    input: question,
-  });
-  const questionEmbedding = questionEmbeddingResponse.data[0].embedding;
+  const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+  const questionEmbeddingResponse = await embeddingModel.embedContent(question);
+  const questionEmbedding = questionEmbeddingResponse.embedding.values;
 
   // 2. Query ChromaDB for top 5 most relevant chunks
   const collection = await chroma.getCollection({ name: safeName });
@@ -73,23 +77,19 @@ const askQuestion = async (collectionName, question) => {
 
   // 3. Prompt the LLM with the context
   const contextText = retrievedChunks.join('\n\n---\n\n');
+  const prompt = `Context from paper:\n${contextText}\n\nQuestion: ${question}`;
+
+  const model = genAI.getGenerativeModel({ 
+    model: "gemini-1.5-flash",
+    systemInstruction: `You are an expert AI research assistant. You answer questions strictly based on the provided paper context. If the answer is not in the context, say "I don't know based on the provided paper." Do not hallucinate.`
+  });
   
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      {
-        role: 'system',
-        content: `You are an expert AI research assistant. You answer questions strictly based on the provided paper context. If the answer is not in the context, say "I don't know based on the provided paper." Do not hallucinate.`
-      },
-      {
-        role: 'user',
-        content: `Context from paper:\n${contextText}\n\nQuestion: ${question}`
-      }
-    ],
-    temperature: 0.2,
+  const result = await model.generateContent({
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.2 }
   });
 
-  return completion.choices[0].message.content;
+  return result.response.text();
 };
 
 /**
@@ -99,24 +99,19 @@ const askQuestion = async (collectionName, question) => {
 const generateQuickSummary = async (chunks) => {
   // Take the first few chunks to generate a high-level summary to save tokens
   const sampleText = chunks.slice(0, 3).join('\n\n');
+  const prompt = `Analyze the provided abstract/introduction of the research paper and provide a JSON response with two keys: "summary" (a 2-3 sentence overview) and "methodology" (a 1-2 sentence description of their approach). Here is the text:\n\n${sampleText}`;
   
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      {
-        role: 'system',
-        content: `Analyze the provided abstract/introduction of the research paper and provide a JSON response with two keys: "summary" (a 2-3 sentence overview) and "methodology" (a 1-2 sentence description of their approach).`
-      },
-      {
-        role: 'user',
-        content: sampleText
-      }
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.2,
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  
+  const result = await model.generateContent({
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { 
+      temperature: 0.2,
+      responseMimeType: "application/json" 
+    }
   });
 
-  return JSON.parse(completion.choices[0].message.content);
+  return JSON.parse(result.response.text());
 };
 
 module.exports = {

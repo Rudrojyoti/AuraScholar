@@ -8,7 +8,7 @@ module.exports = {
   chroma: {
     url: process.env.CHROMA_URL || 'http://localhost:8000'
   },
-  openai: {
-    apiKey: process.env.OPENAI_API_KEY
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY || 'AIzaSyAS79tZtQd5CFLlTQ9GpJWKY2Sd5M1wHsc'
   }
 };
