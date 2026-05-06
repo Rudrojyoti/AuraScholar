@@ -7,6 +7,7 @@ import { Settings, ArrowLeft } from 'lucide-react';
 
 const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings }) => {
   const [uploadedPaper, setUploadedPaper] = useState(null);
+  const [paperId, setPaperId] = useState(null);
   const [summary, setSummary] = useState('');
   const [methodology, setMethodology] = useState('');
   const [contributions, setContributions] = useState('');
@@ -19,26 +20,60 @@ const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings 
     setLoading(true);
     setUploadedPaper(file);
     setQaHistory([]);
+    setPaperId(null);
 
-    // TODO: Send to backend for processing with RAG
-    setTimeout(() => {
-      setSummary('Paper summary will be extracted here after backend processes the PDF...');
-      setMethodology('Methodology section will be extracted from the paper...');
-      setContributions('Key contributions claimed by the paper...');
-      setLimitations('Identified limitations and constraints...');
-      setFutureWork('Suggested future research directions...');
+    const formData = new FormData();
+    formData.append('pdf', file);
+
+    try {
+      const response = await fetch('http://localhost:3001/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const result = await response.json();
+
+      if (result.status === 'success') {
+        setPaperId(result.data.paperId);
+        setSummary(result.data.summary || 'Summary not available.');
+        setMethodology(result.data.methodology || 'Methodology not available.');
+        setContributions('Available in later phases...');
+        setLimitations('Available in later phases...');
+        setFutureWork('Available in later phases...');
+      } else {
+        alert('Error parsing PDF: ' + result.message);
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Network error while uploading PDF.');
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
   const handleQuestion = async (question) => {
+    if (!paperId) return alert('Please wait for the paper to finish processing.');
+    
     setLoading(true);
     
-    // TODO: Send question to backend with RAG retrieval
-    // Only return answers strictly from the uploaded paper
-    const answer = 'Answer based on the uploaded paper using RAG retrieval...';
-    setQaHistory([...qaHistory, { q: question, a: answer }]);
-    setLoading(false);
+    try {
+      const response = await fetch('http://localhost:3001/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paperId, question })
+      });
+      const result = await response.json();
+
+      if (result.status === 'success') {
+        setQaHistory([...qaHistory, { q: question, a: result.data.answer }]);
+      } else {
+        alert('Error: ' + result.message);
+      }
+    } catch (error) {
+      console.error('Ask error:', error);
+      alert('Network error while asking question.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
