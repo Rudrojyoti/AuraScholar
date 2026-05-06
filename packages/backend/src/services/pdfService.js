@@ -11,7 +11,7 @@ const extractText = async (dataBuffer) => {
     return data.text;
   } catch (error) {
     console.error('Error extracting text from PDF:', error);
-    throw new Error('Failed to parse PDF file.');
+    throw new Error('Failed to parse PDF file. Details: ' + error.message);
   }
 };
 
