@@ -3,14 +3,18 @@ require('dotenv').config();
 module.exports = {
   port: process.env.PORT || 3001,
   db: {
-    url: process.env.DATABASE_URL
+    url: process.env.MONGODB_URI
   },
-  chroma: {
-    url: process.env.CHROMA_URL || 'http://localhost:8000'
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY,
+    model: 'gemini-1.5-flash',
+    embeddingModel: 'text-embedding-004'
   },
-  ollama: {
-    host: process.env.OLLAMA_HOST || 'http://127.0.0.1:11434',
-    model: process.env.OLLAMA_MODEL || 'gemma:2b',
-    embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text'
+  clerk: {
+    secretKey: process.env.CLERK_SECRET_KEY
+  },
+  uploadthing: {
+    secret: process.env.UPLOADTHING_SECRET,
+    appId: process.env.UPLOADTHING_APP_ID
   }
 };

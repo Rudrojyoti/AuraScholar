@@ -1,14 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
 const uploadController = require('../controllers/uploadController');
+const { clerkMiddleware, requireAuth } = require('@clerk/express');
 
-// Configure multer to store files in memory
-const upload = multer({ 
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB limit
-});
+// We don't use multer anymore since Uploadthing handles the upload
+// We just receive a JSON body with the fileUrl
 
-router.post('/', upload.single('pdf'), uploadController.uploadPdf);
+router.post('/', clerkMiddleware(), requireAuth(), uploadController.uploadPdf);
 
 module.exports = router;
+

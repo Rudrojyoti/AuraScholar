@@ -3,6 +3,7 @@ const cors = require('cors');
 const healthRoutes = require('./routes/healthRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const queryRoutes = require('./routes/queryRoutes');
+const uploadthingRoutes = require('./routes/uploadthingRoutes');
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/health', healthRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/ask', queryRoutes);
+app.use('/api/uploadthing', uploadthingRoutes);
 
 // 404 Handler
 app.use((req, res, next) => {
@@ -34,3 +36,4 @@ app.use((err, req, res, next) => {
 });
 
 module.exports = app;
+

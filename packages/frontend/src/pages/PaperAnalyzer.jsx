@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@clerk/clerk-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 import PdfUpload from '../components/PdfUpload';
@@ -17,20 +18,27 @@ const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings 
   const [futureWork, setFutureWork] = useState('');
   const [loading, setLoading] = useState(false);
   const [qaHistory, setQaHistory] = useState([]);
+  
+  const { getToken } = useAuth();
 
-  const handlePdfUpload = async (file) => {
+  const handlePdfUpload = async (fileData) => {
     setLoading(true);
-    setUploadedPaper(file);
+    setUploadedPaper(fileData);
     setQaHistory([]);
     setPaperId(null);
 
-    const formData = new FormData();
-    formData.append('pdf', file);
-
     try {
+      const token = await getToken();
       const response = await fetch(`${API_BASE_URL}/upload`, {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          fileUrl: fileData.url,
+          paperName: fileData.name
+        }),
       });
       const result = await response.json();
 
@@ -46,7 +54,7 @@ const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings 
       }
     } catch (error) {
       console.error('Upload error:', error);
-      alert('Network error while uploading PDF.');
+      alert('Network error while processing PDF.');
     } finally {
       setLoading(false);
     }
@@ -58,9 +66,13 @@ const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings 
     setLoading(true);
 
     try {
+      const token = await getToken();
       const response = await fetch(`${API_BASE_URL}/ask`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ paperId, question })
       });
       const result = await response.json();
@@ -160,7 +172,7 @@ const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings 
                   <p className="text-white font-bold text-xl font-display truncate">{uploadedPaper.name}</p>
                   <p className="text-gray-400 text-sm mt-1 flex items-center gap-2">
                     <span className="inline-block w-2 h-2 rounded-full bg-green-400"></span>
-                    Size: {(uploadedPaper.size / 1024 / 1024).toFixed(2)} MB
+                    Ready for Analysis
                   </p>
                 </div>
                 <motion.button
@@ -255,7 +267,7 @@ const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings 
                   </div>
                   <div className="text-center px-4">
                     <p className="text-gray-400 text-xs uppercase tracking-widest mb-1">User</p>
-                    <p className="text-white font-medium text-sm truncate font-display">{userEmail.split('@')[0]}</p>
+                    <p className="text-white font-medium text-sm truncate font-display">{userEmail?.split('@')[0]}</p>
                   </div>
                 </div>
               </motion.div>
@@ -268,3 +280,4 @@ const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings 
 };
 
 export default PaperAnalyzer;
+
