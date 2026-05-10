@@ -10,6 +10,10 @@ module.exports = {
     model: 'gemini-1.5-flash',
     embeddingModel: 'text-embedding-004'
   },
+  groq: {
+    apiKey: process.env.GROQ_API_KEY,
+    model: 'llama-3.1-70b-versatile'
+  },
   clerk: {
     secretKey: process.env.CLERK_SECRET_KEY
   },
