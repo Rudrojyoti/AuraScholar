@@ -8,7 +8,9 @@ module.exports = {
   chroma: {
     url: process.env.CHROMA_URL || 'http://localhost:8000'
   },
-  gemini: {
-    apiKey: process.env.GEMINI_API_KEY || 'AIzaSyAS79tZtQd5CFLlTQ9GpJWKY2Sd5M1wHsc'
+  ollama: {
+    host: process.env.OLLAMA_HOST || 'http://127.0.0.1:11434',
+    model: process.env.OLLAMA_MODEL || 'gemma:2b',
+    embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text'
   }
 };

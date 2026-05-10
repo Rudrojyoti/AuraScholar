@@ -14,33 +14,40 @@ const QuestionBox = ({ onAsk, loading }) => {
 
   return (
     <motion.div
-      className="bg-gray-800/50 border border-gray-700 rounded-lg p-6"
+      className="glass-card rounded-2xl p-6 md:p-8"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.1 }}
     >
-      <h3 className="text-xl font-bold text-white mb-4">❓ Ask a Question</h3>
-      <p className="text-gray-400 text-sm mb-4">
+      <h3 className="text-2xl font-bold text-white mb-2 font-display">Ask a Question</h3>
+      <p className="text-gray-400 text-sm mb-6 font-sans">
         Ask anything about the paper. Answers are based only on the uploaded document.
       </p>
       
-      <form onSubmit={handleSubmit} className="flex gap-3">
+      <form onSubmit={handleSubmit} className="flex gap-3 relative">
         <input
           type="text"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="E.g., What is the main contribution of this paper?"
-          className="flex-1 px-4 py-3 bg-gray-900/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition"
+          className="flex-1 px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:bg-white/10 transition-all font-sans"
           disabled={loading}
         />
         <motion.button
           type="submit"
           disabled={loading}
-          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-lg font-semibold disabled:opacity-50 transition"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          className="px-8 py-4 btn-primary rounded-xl font-semibold disabled:opacity-50 transition-all flex items-center justify-center min-w-[120px]"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
-          {loading ? '⏳' : '🔍'}
+          {loading ? (
+            <span className="flex items-center gap-2">
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+              Thinking...
+            </span>
+          ) : (
+            'Ask AI'
+          )}
         </motion.button>
       </form>
     </motion.div>

@@ -1,10 +1,10 @@
 const { ChromaClient } = require('chromadb');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { Ollama } = require('ollama');
 const config = require('../config');
 
 // Initialize clients
 const chroma = new ChromaClient({ path: config.chroma.url });
-const genAI = new GoogleGenerativeAI(config.gemini.apiKey);
+const ollamaClient = new Ollama({ host: config.ollama.host });
 
 /**
  * Stores text chunks into ChromaDB with embeddings
@@ -12,27 +12,28 @@ const genAI = new GoogleGenerativeAI(config.gemini.apiKey);
  * @param {string[]} chunks - Array of text chunks
  */
 const storeDocument = async (collectionName, chunks) => {
-  // Ensure a clean collection name
-  const safeName = collectionName.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 63);
-  
+  // Ensure a clean collection name and append _ollama to avoid dimension conflicts with old Gemini collections
+  const baseName = collectionName.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
+  const safeName = `${baseName}_ollama`;
+
   // Get or create the collection
   const collection = await chroma.getOrCreateCollection({
     name: safeName,
     metadata: { "description": "Paper chunks" }
   });
 
-  // Generate embeddings for all chunks using text-embedding-004
-  const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
-  
   const embeddings = [];
-  // Generating embeddings sequentially or using Promise.all
-  // Note: For large documents, we should chunk this to avoid rate limits
-  const embedPromises = chunks.map(chunk => 
-    embeddingModel.embedContent(chunk)
-  );
   
+  // Generating embeddings sequentially or using Promise.all
+  const embedPromises = chunks.map(chunk =>
+    ollamaClient.embeddings({
+      model: config.ollama.embeddingModel,
+      prompt: chunk
+    })
+  );
+
   const responses = await Promise.all(embedPromises);
-  responses.forEach(res => embeddings.push(res.embedding.values));
+  responses.forEach(res => embeddings.push(res.embedding));
 
   const ids = chunks.map((_, idx) => `chunk_${idx}`);
   const metadatas = chunks.map((_, idx) => ({ source: safeName, chunkIndex: idx }));
@@ -55,12 +56,15 @@ const storeDocument = async (collectionName, chunks) => {
  * @returns {Promise<string>} - The LLM's answer
  */
 const askQuestion = async (collectionName, question) => {
-  const safeName = collectionName.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 63);
-  
+  const baseName = collectionName.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
+  const safeName = `${baseName}_ollama`;
+
   // 1. Embed the question
-  const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
-  const questionEmbeddingResponse = await embeddingModel.embedContent(question);
-  const questionEmbedding = questionEmbeddingResponse.embedding.values;
+  const questionEmbeddingResponse = await ollamaClient.embeddings({
+    model: config.ollama.embeddingModel,
+    prompt: question
+  });
+  const questionEmbedding = questionEmbeddingResponse.embedding;
 
   // 2. Query ChromaDB for top 5 most relevant chunks
   const collection = await chroma.getCollection({ name: safeName });
@@ -70,7 +74,7 @@ const askQuestion = async (collectionName, question) => {
   });
 
   const retrievedChunks = results.documents[0]; // Array of text chunks
-  
+
   if (!retrievedChunks || retrievedChunks.length === 0) {
     return "I couldn't find any relevant information in the uploaded paper to answer your question.";
   }
@@ -79,17 +83,24 @@ const askQuestion = async (collectionName, question) => {
   const contextText = retrievedChunks.join('\n\n---\n\n');
   const prompt = `Context from paper:\n${contextText}\n\nQuestion: ${question}`;
 
-  const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.5-flash",
-    systemInstruction: `You are an expert AI research assistant. You answer questions strictly based on the provided paper context. If the answer is not in the context, say "I don't know based on the provided paper." Do not hallucinate.`
-  });
-  
-  const result = await model.generateContent({
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.2 }
+  const response = await ollamaClient.chat({
+    model: config.ollama.model,
+    messages: [
+      {
+        role: "system",
+        content: `You are an expert AI research assistant. You answer questions strictly based on the provided paper context. If the answer is not in the context, say "I don't know based on the provided paper." Do not hallucinate.`
+      },
+      {
+        role: "user",
+        content: prompt
+      }
+    ],
+    options: {
+      temperature: 0.2
+    }
   });
 
-  return result.response.text();
+  return response.message.content;
 };
 
 /**
@@ -100,18 +111,22 @@ const generateQuickSummary = async (chunks) => {
   // Take the first few chunks to generate a high-level summary to save tokens
   const sampleText = chunks.slice(0, 3).join('\n\n');
   const prompt = `Analyze the provided abstract/introduction of the research paper and provide a JSON response with two keys: "summary" (a 2-3 sentence overview) and "methodology" (a 1-2 sentence description of their approach). Here is the text:\n\n${sampleText}`;
-  
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-  
-  const result = await model.generateContent({
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { 
-      temperature: 0.2,
-      responseMimeType: "application/json" 
+
+  const response = await ollamaClient.chat({
+    model: config.ollama.model,
+    messages: [
+      {
+        role: "user",
+        content: prompt
+      }
+    ],
+    format: 'json',
+    options: {
+      temperature: 0.2
     }
   });
 
-  return JSON.parse(result.response.text());
+  return JSON.parse(response.message.content);
 };
 
 module.exports = {

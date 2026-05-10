@@ -14,22 +14,22 @@ const OutputTabs = ({ summary, methodology, contributions, limitations, futureWo
 
   return (
     <motion.div
-      className="bg-gray-800/50 border border-gray-700 rounded-lg overflow-hidden"
+      className="glass-card rounded-2xl overflow-hidden shadow-xl"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="flex border-b border-gray-700 bg-gray-900/50 backdrop-blur">
+      <div className="flex border-b border-white/10 bg-white/5 backdrop-blur-md overflow-x-auto custom-scrollbar">
         {tabs.map((tab) => (
           <motion.button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 px-6 py-4 font-semibold transition-all ${
+            className={`flex-1 px-6 py-5 font-semibold transition-all whitespace-nowrap font-sans text-sm tracking-wide ${
               activeTab === tab.id
-                ? 'text-white border-b-2 border-blue-500 bg-gray-800/50'
-                : 'text-gray-400 hover:text-gray-300'
+                ? 'text-indigo-300 border-b-2 border-indigo-500 bg-white/5'
+                : 'text-gray-400 hover:text-gray-200'
             }`}
-            whileHover={{ backgroundColor: 'rgba(107, 114, 128, 0.3)' }}
+            whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
           >
             {tab.label}
           </motion.button>
@@ -57,11 +57,11 @@ const OutputTabs = ({ summary, methodology, contributions, limitations, futureWo
             className="space-y-4"
           >
             {tabs.find((t) => t.id === activeTab)?.content ? (
-              <div className="text-gray-300 leading-relaxed whitespace-pre-wrap">
+              <div className="text-gray-300 leading-relaxed whitespace-pre-wrap font-sans text-base">
                 {tabs.find((t) => t.id === activeTab)?.content}
               </div>
             ) : (
-              <p className="text-gray-500 italic">No content yet. Upload a paper to get started.</p>
+              <p className="text-gray-500 italic text-center mt-10">No content yet. Upload a paper to get started.</p>
             )}
           </motion.div>
         )}

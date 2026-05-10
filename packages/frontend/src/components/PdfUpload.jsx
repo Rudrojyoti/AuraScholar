@@ -38,10 +38,10 @@ const PdfUpload = ({ onUpload }) => {
       transition={{ duration: 0.5 }}
     >
       <motion.div
-        className={`w-full max-w-2xl p-12 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
+        className={`w-full max-w-2xl p-12 border-2 border-dashed rounded-3xl cursor-pointer transition-all duration-300 glass-card ${
           isDragActive
-            ? 'border-blue-500 bg-blue-500/10'
-            : 'border-gray-600 bg-gray-800/30 hover:border-blue-400'
+            ? 'border-indigo-500 bg-indigo-500/10 scale-105 shadow-[0_0_40px_rgba(99,102,241,0.2)]'
+            : 'border-white/20 hover:border-indigo-400/50 hover:bg-white/5'
         }`}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
@@ -64,18 +64,18 @@ const PdfUpload = ({ onUpload }) => {
           >
             📄
           </motion.div>
-          <h2 className="text-2xl font-bold text-white mb-2">Upload Research Paper</h2>
-          <p className="text-gray-400 text-center mb-4">
+          <h2 className="text-3xl font-bold text-white mb-3 font-display">Upload Research Paper</h2>
+          <p className="text-gray-400 text-center mb-8 font-sans text-lg">
             Drag and drop your PDF here or click to select
           </p>
           <motion.div
-            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-semibold"
+            className="px-8 py-4 btn-primary rounded-xl font-semibold tracking-wide"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
             Choose PDF
           </motion.div>
-          <p className="text-gray-500 text-sm mt-4">PDF files only • Max size: 50MB</p>
+          <p className="text-gray-500 text-sm mt-6 font-medium">PDF files only • Max size: 50MB</p>
         </label>
       </motion.div>
     </motion.div>
