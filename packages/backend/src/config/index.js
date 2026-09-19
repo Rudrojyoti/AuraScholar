@@ -5,10 +5,15 @@ module.exports = {
   db: {
     url: process.env.MONGODB_URI
   },
+  qwen: {
+    baseUrl: process.env.MODELSCOPE_BASE_URL || 'https://api-inference.modelscope.ai/v1',
+    apiKey: process.env.MODELSCOPE_API_KEY || 'ms-f3b12670-e0ff-404e-9594-b96fdf3d7fd9',
+    model: process.env.MODELSCOPE_MODEL || 'Qwen/Qwen3.8-27B'
+  },
   gemini: {
     apiKey: process.env.GEMINI_API_KEY,
-    model: 'gemini-1.5-flash',
-    embeddingModel: 'text-embedding-004'
+    model: 'gemini-2.5-flash',
+    embeddingModel: 'gemini-embedding-001'
   },
   groq: {
     apiKey: process.env.GROQ_API_KEY,

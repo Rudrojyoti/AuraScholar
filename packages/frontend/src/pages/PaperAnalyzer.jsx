@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth } from '@clerk/clerk-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 import PdfUpload from '../components/PdfUpload';
@@ -8,7 +7,7 @@ import OutputTabs from '../components/OutputTabs';
 import QuestionBox from '../components/QuestionBox';
 import { Settings, ArrowLeft } from 'lucide-react';
 
-const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings }) => {
+const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings, getToken }) => {
   const [uploadedPaper, setUploadedPaper] = useState(null);
   const [paperId, setPaperId] = useState(null);
   const [summary, setSummary] = useState('');
@@ -18,8 +17,6 @@ const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings 
   const [futureWork, setFutureWork] = useState('');
   const [loading, setLoading] = useState(false);
   const [qaHistory, setQaHistory] = useState([]);
-  
-  const { getToken } = useAuth();
 
   const handlePdfUpload = async (fileData) => {
     setLoading(true);
@@ -28,16 +25,20 @@ const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings 
     setPaperId(null);
 
     try {
-      const token = await getToken();
+      const token = getToken ? await getToken() : null;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${API_BASE_URL}/upload`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers,
         body: JSON.stringify({
+          paperName: fileData.name,
+          fileBase64: fileData.fileBase64,
           fileUrl: fileData.url,
-          paperName: fileData.name
+          userId: userEmail || 'guest_user'
         }),
       });
       const result = await response.json();
@@ -50,11 +51,11 @@ const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings 
         setLimitations('Available in later phases...');
         setFutureWork('Available in later phases...');
       } else {
-        alert('Error parsing PDF: ' + result.message);
+        alert('Error parsing PDF: ' + (result.message || 'Unknown error'));
       }
     } catch (error) {
       console.error('Upload error:', error);
-      alert('Network error while processing PDF.');
+      alert('Network error while processing PDF. Please verify backend is running on port 3001.');
     } finally {
       setLoading(false);
     }
@@ -66,21 +67,27 @@ const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings 
     setLoading(true);
 
     try {
-      const token = await getToken();
+      const token = getToken ? await getToken() : null;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${API_BASE_URL}/ask`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ paperId, question })
+        headers,
+        body: JSON.stringify({ 
+          paperId, 
+          question,
+          userId: userEmail || 'guest_user'
+        })
       });
       const result = await response.json();
 
       if (result.status === 'success') {
-        setQaHistory([...qaHistory, { q: question, a: result.data.answer }]);
+        setQaHistory(prev => [...prev, { q: question, a: result.data.answer }]);
       } else {
-        alert('Error: ' + result.message);
+        alert('Error: ' + (result.message || 'Could not answer question.'));
       }
     } catch (error) {
       console.error('Ask error:', error);
@@ -115,7 +122,7 @@ const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings 
               <h1 className="text-3xl font-bold font-display text-gradient">
                 Research Paper Analyzer
               </h1>
-              <p className="text-gray-400 text-sm mt-1 font-sans">AI-powered RAG system for deep paper insights</p>
+              <p className="text-gray-400 text-sm mt-1 font-sans">Powered by Qwen 3.8 AI & Vector Analysis</p>
             </div>
           </motion.div>
 
@@ -128,7 +135,7 @@ const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings 
             </button>
             <div className="text-right hidden sm:block border-l border-white/10 pl-4">
               <p className="text-gray-400 text-xs uppercase tracking-wider">Logged in as</p>
-              <p className="text-white font-medium text-sm truncate max-w-xs">{userEmail}</p>
+              <p className="text-white font-medium text-sm truncate max-w-xs">{userEmail || 'Guest Researcher'}</p>
             </div>
             <motion.button
               onClick={onLogout}
@@ -267,7 +274,7 @@ const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings 
                   </div>
                   <div className="text-center px-4">
                     <p className="text-gray-400 text-xs uppercase tracking-widest mb-1">User</p>
-                    <p className="text-white font-medium text-sm truncate font-display">{userEmail?.split('@')[0]}</p>
+                    <p className="text-white font-medium text-sm truncate font-display">{(userEmail || 'researcher').split('@')[0]}</p>
                   </div>
                 </div>
               </motion.div>
@@ -280,4 +287,3 @@ const PaperAnalyzer = ({ userEmail, onLogout, onBackToDashboard, onOpenSettings 
 };
 
 export default PaperAnalyzer;
-

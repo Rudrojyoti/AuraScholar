@@ -1,30 +1,33 @@
 const pdfService = require('../services/pdfService');
 const vectorService = require('../services/vectorService');
 const llmService = require('../services/llmService');
-const Paper = require('../models/Paper');
+const paperStore = require('../services/paperStore');
 
 const uploadPdf = async (req, res) => {
   try {
-    const { fileUrl, paperName } = req.body;
-    const userId = req.auth?.userId; // Ensure Clerk middleware is passing auth
+    const { fileUrl, paperName, fileBase64 } = req.body;
+    const userId = req.auth?.userId || req.body.userId || 'guest_user';
 
-    if (!fileUrl || !paperName) {
-      return res.status(400).json({ status: 'error', message: 'Missing fileUrl or paperName' });
+    if (!paperName || (!fileUrl && !fileBase64)) {
+      return res.status(400).json({ status: 'error', message: 'Missing paperName or PDF data (fileUrl / fileBase64)' });
     }
 
-    if (!userId) {
-      return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+    let buffer;
+    if (fileBase64) {
+      // Decode base64 PDF
+      const cleanBase64 = fileBase64.replace(/^data:application\/pdf;base64,/, '');
+      buffer = Buffer.from(cleanBase64, 'base64');
+    } else {
+      // Fetch the PDF buffer from URL
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file from URL: ${response.statusText}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
     }
 
-    // 1. Fetch the PDF buffer from Uploadthing URL
-    const response = await fetch(fileUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch file from URL: ${response.statusText}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // 2. Extract text and chunk
+    // Extract text and chunk
     const rawText = await pdfService.extractText(buffer);
     const chunks = pdfService.chunkText(rawText);
 
@@ -32,21 +35,20 @@ const uploadPdf = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Could not extract text from PDF' });
     }
 
-    // 3. Create Paper record in MongoDB
-    const paper = new Paper({
+    // Create Paper record
+    const paper = await paperStore.createPaper({
       userId,
       title: paperName,
-      fileUrl
+      fileUrl: fileUrl || 'in_memory'
     });
-    await paper.save();
 
-    // 4. Store chunks in Vector DB (MongoDB Atlas)
+    // Store chunks in Vector Store (MongoDB Atlas or In-Memory)
     await vectorService.storeChunks(paper._id, chunks);
 
-    // 5. Generate initial summary
+    // Generate initial summary using Qwen 3.8 / Gemini fallback
     const initialData = await llmService.generateQuickSummary(chunks);
 
-    // 6. Update Paper with summary
+    // Update Paper with summary
     paper.summary = initialData.summary;
     paper.methodology = initialData.methodology;
     await paper.save();
@@ -73,4 +75,3 @@ const uploadPdf = async (req, res) => {
 module.exports = {
   uploadPdf
 };
-
