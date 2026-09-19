@@ -19,6 +19,9 @@ build/
 out/
 /frontend/dist/
 
+# npm workspaces - root lock is canonical
+packages/*/package-lock.json
+
 # Sensitive Environment Variables
 .env
 .env.local
@@ -41,3 +44,8 @@ out/
 
 # System Files
 Thumbs.db
+
+# AI Agent Tooling (not project code)
+.agents/
+.claude/
+skills-lock.json
