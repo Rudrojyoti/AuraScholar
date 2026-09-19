@@ -32,20 +32,15 @@ const isMongoConnected = () => {
  * @param {string[]} chunks - Array of text chunks
  */
 const storeChunks = async (paperId, chunks) => {
-  const paperChunks = [];
+  // Generate embeddings for all chunks via batching and local fallback
+  const embeddings = await llmService.generateBatchEmbeddings(chunks);
 
-  // Generate embeddings for all chunks sequentially to avoid rate limits
-  for (let i = 0; i < chunks.length; i++) {
-    const chunkText = chunks[i];
-    const embedding = await llmService.generateEmbedding(chunkText);
-    
-    paperChunks.push({
-      paperId: paperId.toString(),
-      chunkIndex: i,
-      text: chunkText,
-      embedding: embedding
-    });
-  }
+  const paperChunks = chunks.map((chunkText, i) => ({
+    paperId: paperId.toString(),
+    chunkIndex: i,
+    text: chunkText,
+    embedding: embeddings[i] || []
+  }));
 
   if (isMongoConnected()) {
     // Bulk insert into MongoDB
@@ -64,8 +59,14 @@ const storeChunks = async (paperId, chunks) => {
  * @returns {Promise<string[]>} - Array of top text chunks
  */
 const findSimilarChunks = async (paperId, question, topK = 5) => {
-  // 1. Embed the question
-  const questionEmbedding = await llmService.generateEmbedding(question);
+  const pidStr = paperId.toString();
+  const relevantChunks = inMemoryChunks.filter(c => c.paperId === pidStr);
+
+  // Detect dimension of the stored chunk embeddings (e.g. 3072 from Gemini or 384 from local)
+  const sampleDim = relevantChunks[0]?.embedding?.length || null;
+
+  // 1. Embed the question matching the paper's vector dimension
+  const questionEmbedding = await llmService.generateEmbedding(question, sampleDim);
 
   if (isMongoConnected()) {
     // Perform vector search in Atlas
@@ -90,20 +91,36 @@ const findSimilarChunks = async (paperId, question, topK = 5) => {
           }
         }
       ]);
-      return results.map(doc => doc.text);
+      if (results && results.length > 0) {
+        return results.map(doc => doc.text);
+      }
     } catch (err) {
       console.warn('[VectorService] MongoDB $vectorSearch failed, falling back to in-memory cosine search:', err.message);
     }
   }
 
-  // In-memory cosine similarity search
-  const pidStr = paperId.toString();
-  const relevantChunks = inMemoryChunks.filter(c => c.paperId === pidStr);
+  // In-memory hybrid search (Cosine Vector Similarity + Keyword Term Matching)
+  const qTerms = (question.toLowerCase().match(/\b[a-z0-9]{3,}\b/g) || []);
 
-  const scored = relevantChunks.map(chunk => ({
-    text: chunk.text,
-    score: cosineSimilarity(questionEmbedding, chunk.embedding)
-  }));
+  const scored = relevantChunks.map(chunk => {
+    let vecScore = 0;
+    if (questionEmbedding && chunk.embedding && questionEmbedding.length === chunk.embedding.length) {
+      vecScore = cosineSimilarity(questionEmbedding, chunk.embedding);
+    }
+
+    // Keyword matching score
+    let matchCount = 0;
+    const chunkLower = chunk.text.toLowerCase();
+    for (const term of qTerms) {
+      if (chunkLower.includes(term)) matchCount++;
+    }
+    const keywordScore = qTerms.length > 0 ? matchCount / qTerms.length : 0;
+
+    return {
+      text: chunk.text,
+      score: vecScore * 0.6 + keywordScore * 0.4
+    };
+  });
 
   scored.sort((a, b) => b.score - a.score);
   return scored.slice(0, topK).map(item => item.text);

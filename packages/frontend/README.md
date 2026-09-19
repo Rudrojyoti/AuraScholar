@@ -1,22 +1,14 @@
-# Markdown Frontend
+# AuraScholar Frontend
 
-This is a minimal React/Vite frontend that displays the Markdown documents in the workspace.
+React (Vite) client application for the AuraScholar Research Paper Analyzer.
 
-## Features
+## Tech Stack
+- **Framework**: React 18 with Vite
+- **Styling**: Tailwind CSS with custom cosmic theme tokens, fonts (Space Grotesk & Hanken Grotesk), and glassmorphism tiers (`glass-tier-1`, `glass-tier-2`, `celestial-glass`).
+- **Animations**: Framer Motion & custom WebGL shaders (`AccretionDiskBackground`).
+- **Icons**: Material Symbols Outlined & Lucide Icons.
 
-- Fresh, high-tech look with minimal colour palette
-- Smooth animations via Framer Motion
-- Tailwind CSS for styling
-- Sidebar navigation of all `.md` files under `/public/assets`
-
-## Setup
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The development server will open in your browser and show the list of documents.
-
-Add or remove markdown files in `public/assets` and they will appear in the menu automatically.
+## Scripts
+- `npm run dev`: Starts the Vite development server on port 5173.
+- `npm run build`: Compiles production assets into `dist/`.
+- `npm run preview`: Previews the production build locally.
