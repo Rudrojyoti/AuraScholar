@@ -26,7 +26,10 @@ export const AccretionDiskBackground: React.FC = () => {
     }
     syncSize();
 
-    const gl = (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
+    const gl = (
+      canvas.getContext('webgl') ??
+      canvas.getContext('experimental-webgl') as WebGLRenderingContext | null
+    );
     if (!gl) return;
 
     const vs = `attribute vec2 a_position;
