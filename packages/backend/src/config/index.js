@@ -23,6 +23,7 @@ module.exports = {
     secretKey: process.env.CLERK_SECRET_KEY
   },
   uploadthing: {
+    token: process.env.UPLOADTHING_TOKEN,
     secret: process.env.UPLOADTHING_SECRET,
     appId: process.env.UPLOADTHING_APP_ID
   },

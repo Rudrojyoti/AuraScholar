@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import UserProfile from './UserProfile';
+import { uploadFiles } from '../utils/uploadthing';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -241,7 +242,7 @@ export const Dashboard = ({
     }
   };
 
-  // Upload and analyze PDF locally or via backend
+  // Upload and analyze PDF via UploadThing cloud CDN & backend
   const handlePdfFile = async (file) => {
     if (!file) return;
     if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
@@ -250,63 +251,88 @@ export const Dashboard = ({
     }
 
     setIsUploading(true);
-    setUploadStatus('Parsing document and extracting text...');
+    setUploadStatus('Uploading PDF to UploadThing cloud CDN...');
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const fileBase64 = reader.result;
-      const paperName = file.name;
-      const sizeMB = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+    const paperName = file.name;
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+    let cloudFileUrl = null;
 
+    try {
+      // Step 1: Upload directly to UploadThing CDN
       try {
-        setUploadStatus('Generating analysis with multiple models...');
-        const token = getToken ? await getToken() : null;
-        const headers = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const res = await fetch(`${API_BASE_URL}/upload`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            paperName,
-            fileBase64,
-            userId: userEmail || 'researcher'
-          })
+        const utRes = await uploadFiles('pdfUploader', {
+          files: [file]
         });
-
-        const data = await res.json();
-
-        if (data.status !== 'success') {
-          throw new Error(data.message || 'Backend returned an error during processing.');
+        if (utRes && utRes[0]?.url) {
+          cloudFileUrl = utRes[0].url;
+          console.log('✅ UploadThing CDN file url:', cloudFileUrl);
         }
+      } catch (utErr) {
+        console.warn('UploadThing CDN direct upload skipped, using fallback:', utErr.message);
+      }
 
-        const newPaper = {
-          id: data?.data?.paperId || Date.now(),
-          backendPaperId: data?.data?.paperId,
-          name: paperName,
-          arxiv: `arXiv:${(Math.random() * 9000 + 1000).toFixed(0)}.${(Math.random() * 9000 + 1000).toFixed(0)}`,
-          pages: data?.data?.numPages || 18,
-          size: sizeMB,
-          domain: 'Research Paper',
-          status: 'Ready',
-          date: 'Analyzed just now',
-          starred: false,
-          equation: "∇_μ F^μν = 4π J^ν + ∂_t (Ψ_acoustic)",
-          equationTag: "Eq. 1",
-          sectionTitle: "1.0 Core Theoretical Framework",
-          sectionExcerpt: "Key mathematical derivation extracted from the document.",
-          summary: data?.data?.summary || 'Summary generated from the uploaded document.',
-          methodology: data?.data?.methodology || 'Methodology extracted from the document.',
-          contributions: data?.data?.contributions || 'Key contributions extracted from the paper.',
-          limitations: data?.data?.limitations || 'Limitations as described in the paper.',
-          futureWork: data?.data?.futureWork || 'Future work directions from the paper.',
-          qaHistory: []
-        };
+      setUploadStatus('Extracting sections & synthesizing with Qwen 3.8...');
+      const token = getToken ? await getToken() : null;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        setPapers(prev => [newPaper, ...prev]);
-        setActivePaper(newPaper);
-      } catch (err) {
-        console.warn('Backend unavailable, generating verified local synthesis:', err);
+      let bodyPayload = {
+        paperName,
+        userId: user?.id || userEmail || 'researcher'
+      };
+
+      if (cloudFileUrl) {
+        bodyPayload.fileUrl = cloudFileUrl;
+      } else {
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        bodyPayload.fileBase64 = base64;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/upload`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(bodyPayload)
+      });
+
+      const data = await res.json();
+
+      if (data.status !== 'success') {
+        throw new Error(data.message || 'Backend returned an error during processing.');
+      }
+
+      const newPaper = {
+        id: data?.data?.paperId || Date.now(),
+        backendPaperId: data?.data?.paperId,
+        name: paperName,
+        fileUrl: cloudFileUrl || data?.data?.fileUrl,
+        arxiv: cloudFileUrl ? 'CDN UploadThing' : `arXiv:${(Math.random() * 9000 + 1000).toFixed(0)}.${(Math.random() * 9000 + 1000).toFixed(0)}`,
+        pages: data?.data?.numPages || 18,
+        size: sizeMB,
+        domain: 'Research Paper',
+        status: 'Ready',
+        date: 'Synthesized just now',
+        starred: false,
+        equation: "∇_μ F^μν = 4π J^ν",
+        equationTag: "Eq. 1",
+        sectionTitle: "1.0 Core Theoretical Framework",
+        sectionExcerpt: data?.data?.summary ? (data.data.summary.slice(0, 140) + '...') : 'Key mathematical derivation extracted from the document.',
+        summary: data?.data?.summary || 'Summary generated from the uploaded document.',
+        methodology: data?.data?.methodology || 'Methodology extracted from the document.',
+        contributions: data?.data?.contributions || 'Key contributions extracted from the paper.',
+        limitations: data?.data?.limitations || 'Limitations as described in the paper.',
+        futureWork: data?.data?.futureWork || 'Future work directions from the paper.',
+        qaHistory: []
+      };
+
+      setPapers(prev => [newPaper, ...prev]);
+      setActivePaper(newPaper);
+    } catch (err) {
+      console.warn('Backend unavailable, generating verified local synthesis:', err);
         // Fallback standalone mode — shown when backend is not running
         const standalonePaper = {
           id: Date.now(),
@@ -331,18 +357,10 @@ export const Dashboard = ({
         };
         setPapers(prev => [standalonePaper, ...prev]);
         setActivePaper(standalonePaper);
-      } finally {
-        setIsUploading(false);
-        setUploadStatus('');
-      }
-    };
-
-    reader.onerror = () => {
+    } finally {
       setIsUploading(false);
-      alert('Could not read PDF file.');
-    };
-
-    reader.readAsDataURL(file);
+      setUploadStatus('');
+    }
   };
 
   const handleAskQuestion = async (e) => {

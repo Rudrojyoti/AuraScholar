@@ -19,6 +19,10 @@ const getHealth = async (req, res) => {
     status: 'success',
     message: 'API is running successfully',
     database: dbStatus,
+    fileStorage: {
+      provider: 'uploadthing',
+      status: process.env.UPLOADTHING_TOKEN ? 'connected' : 'not_configured'
+    },
     timestamp: new Date().toISOString()
   });
 };

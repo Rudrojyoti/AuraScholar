@@ -6,6 +6,9 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const queryRoutes = require('./routes/queryRoutes');
 const paperRoutes = require('./routes/paperRoutes');
 const profileRoutes = require('./routes/profileRoutes');
+const { createRouteHandler } = require('uploadthing/express');
+const { uploadRouter } = require('./services/uploadthingRouter');
+const config = require('./config');
 
 const app = express();
 
@@ -32,6 +35,19 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/ask', queryRoutes);
 app.use('/api/papers', paperRoutes);
 app.use('/api/profile', profileRoutes);
+
+// UploadThing Cloud Storage Endpoint
+if (config.uploadthing?.token) {
+  app.use(
+    '/api/uploadthing',
+    createRouteHandler({
+      router: uploadRouter,
+      config: {
+        token: config.uploadthing.token
+      }
+    })
+  );
+}
 
 // 404 Handler
 app.use((req, res) => {
