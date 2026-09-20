@@ -12,11 +12,23 @@ const isSSOCallback = () => new URLSearchParams(window.location.search).has('cle
 // Sub-component for Clerk Authenticated Flow
 function ClerkAppContent({ onOpenSettings }) {
   const [showSignIn, setShowSignIn] = useState(false);
+  const [bypassedUser, setBypassedUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('aurascholar_bypassed_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const { user } = useUser();
   const { signOut } = useClerk();
   const { getToken, isLoaded, isSignedIn } = useAuth();
 
   const handleLogout = () => {
+    try {
+      localStorage.removeItem('aurascholar_bypassed_user');
+    } catch (e) {}
+    setBypassedUser(null);
     signOut();
   };
 
@@ -32,11 +44,18 @@ function ClerkAppContent({ onOpenSettings }) {
     );
   }
 
-  if (isSignedIn) {
+  if (isSignedIn || bypassedUser) {
+    const activeEmail = user?.primaryEmailAddress?.emailAddress || bypassedUser?.email || 'researcher@lab.org';
+    const activeUser = user || {
+      id: bypassedUser?.id || `user_${Date.now()}`,
+      fullName: bypassedUser?.name || activeEmail.split('@')[0],
+      username: activeEmail.split('@')[0],
+      primaryEmailAddress: { emailAddress: activeEmail }
+    };
     return (
       <Dashboard 
-        user={user}
-        userEmail={user?.primaryEmailAddress?.emailAddress}
+        user={activeUser}
+        userEmail={activeEmail}
         onLogout={handleLogout}
         onOpenSettings={onOpenSettings}
         getToken={getToken}
@@ -51,7 +70,16 @@ function ClerkAppContent({ onOpenSettings }) {
       ) : (
         <SpaceAuthPage 
           onBack={() => setShowSignIn(false)} 
-          onAuthSuccess={() => setShowSignIn(false)} 
+          onAuthSuccess={(email, mode, skipSession) => {
+            if (skipSession && email) {
+              const bUser = { id: `user_${Date.now()}`, email, name: email.split('@')[0] };
+              try {
+                localStorage.setItem('aurascholar_bypassed_user', JSON.stringify(bUser));
+              } catch (e) {}
+              setBypassedUser(bUser);
+            }
+            setShowSignIn(false);
+          }} 
         />
       )}
     </>

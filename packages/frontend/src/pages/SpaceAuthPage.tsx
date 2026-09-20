@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 interface SpaceAuthPageProps {
-  onAuthSuccess?: (email: string, mode: 'signin' | 'signup') => void;
+  onAuthSuccess?: (email: string, mode: 'signin' | 'signup', skipSession?: boolean) => void;
   onBack?: () => void;
   initialMode?: 'signin' | 'signup';
 }
@@ -31,6 +31,8 @@ export const SpaceAuthPage: React.FC<SpaceAuthPageProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [notFoundPrompt, setNotFoundPrompt] = useState(false);
+  const [pendingVerification, setPendingVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
 
   const { signIn, isLoaded: signInLoaded } = useSignIn();
   const { signUp, isLoaded: signUpLoaded } = useSignUp();
@@ -68,9 +70,14 @@ export const SpaceAuthPage: React.FC<SpaceAuthPageProps> = ({
           await setActive({ session: result.createdSessionId });
           onAuthSuccess?.(email, 'signup');
         } else if (result.status === 'missing_requirements') {
-          // Email verification required — send code
-          await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
-          setErrorMsg('Check your email for a verification code. (Email verification flow coming soon)');
+          // Email verification required — send code and show input + skip option
+          try {
+            await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+          } catch (prepErr) {
+            console.warn('prepareEmailAddressVerification:', prepErr);
+          }
+          setPendingVerification(true);
+          setErrorMsg('');
         } else {
           setErrorMsg('Account creation could not be completed. Please try again.');
         }
@@ -98,6 +105,38 @@ export const SpaceAuthPage: React.FC<SpaceAuthPageProps> = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verificationCode.trim()) {
+      setErrorMsg('Please enter the 6-digit verification code.');
+      return;
+    }
+    if (!signUpLoaded) return;
+    setIsLoading(true);
+    setErrorMsg('');
+    try {
+      const result = await signUp.attemptEmailAddressVerification({
+        code: verificationCode.trim()
+      });
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId });
+        onAuthSuccess?.(email, 'signup');
+      } else {
+        setErrorMsg('Verification could not be completed. Please check your code.');
+      }
+    } catch (err: any) {
+      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || 'Invalid verification code.';
+      setErrorMsg(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSkipVerification = () => {
+    // Instant developer bypass: lets the user enter the workspace immediately
+    onAuthSuccess?.(email, 'signup', true);
   };
 
   const handleSocialAuth = async (provider: 'google' | 'github') => {
@@ -209,225 +248,302 @@ export const SpaceAuthPage: React.FC<SpaceAuthPageProps> = ({
               {/* Top Hairline Starlight Accent */}
               <div className="absolute top-0 left-[10%] right-[10%] h-[1px] bg-gradient-to-r from-transparent via-[#38bdf8]/80 to-transparent pointer-events-none" />
 
-              {/* Mode Switcher Pill */}
-              <div className="flex p-1 mb-8 rounded-full bg-black/60 border border-white/10 relative">
-                <button
-                  type="button"
-                  onClick={() => { setMode('signin'); setErrorMsg(''); setNotFoundPrompt(false); }}
-                  className={`flex-1 py-2 text-center rounded-full text-xs font-semibold transition-all duration-300 ${
-                    mode === 'signin'
-                      ? 'bg-[#38bdf8] text-[#00354a] shadow-[0_0_15px_rgba(56,189,248,0.4)]'
-                      : 'text-[#94a3b8] hover:text-white'
-                  }`}
-                >
-                  Sign In
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setMode('signup'); setErrorMsg(''); setNotFoundPrompt(false); }}
-                  className={`flex-1 py-2 text-center rounded-full text-xs font-semibold transition-all duration-300 ${
-                    mode === 'signup'
-                      ? 'bg-[#38bdf8] text-[#00354a] shadow-[0_0_15px_rgba(56,189,248,0.4)]'
-                      : 'text-[#94a3b8] hover:text-white'
-                  }`}
-                >
-                  Create Account
-                </button>
-              </div>
-
-              {/* Headline & Contextual Subtext */}
-              <div className="mb-8 text-center sm:text-left">
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={mode}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <h1 className="text-2xl font-bold tracking-tight text-white mb-2">
-                      {mode === 'signin' ? 'Welcome back' : 'Create your account'}
-                    </h1>
-                    <p className="text-sm text-[#94a3b8] leading-relaxed">
-                      {mode === 'signin'
-                        ? 'Sign in to access your papers and analysis history.'
-                        : 'Get started with AuraScholar. It only takes a moment.'}
-                    </p>
-                  </motion.div>
-                </AnimatePresence>
-              </div>
-
-              {/* Federated Social Logins */}
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                <button
-                  type="button"
-                  onClick={() => handleSocialAuth('google')}
-                  disabled={isLoading}
-                  className="group flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 hover:border-white/25 transition-all duration-200 active:scale-[0.98] text-white text-xs font-medium"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24">
-                    <path d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.3 9 5 12 5z" fill="#EA4335" />
-                    <path d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5.1 3.7-8.8z" fill="#4285F4" />
-                    <path d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.8s.2-2.1.4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z" fill="#FBBC05" />
-                    <path d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.3-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z" fill="#34A853" />
-                  </svg>
-                  <span>Google</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSocialAuth('github')}
-                  disabled={isLoading}
-                  className="group flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 hover:border-white/25 transition-all duration-200 active:scale-[0.98] text-white text-xs font-medium"
-                >
-                  <svg className="w-4 h-4 fill-white group-hover:fill-[#38bdf8] transition-colors" viewBox="0 0 24 24">
-                    <path clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" fillRule="evenodd" />
-                  </svg>
-                  <span>GitHub</span>
-                </button>
-              </div>
-
-              {/* Divider */}
-              <div className="relative flex items-center justify-center my-6">
-                <div className="w-full border-t border-white/10" />
-                <span className="absolute bg-[#080812] px-3 font-mono text-[10px] text-[#64748b] tracking-wider uppercase">
-                  Or Continue With Email
-                </span>
-              </div>
-
-              {/* Error Message & Interactive Auto-Option for New Users */}
-              {errorMsg && (
-                <div className={`mb-4 p-3.5 rounded-xl border text-xs transition-all ${
-                  notFoundPrompt 
-                    ? 'bg-[#38bdf8]/10 border-[#38bdf8]/40 text-white shadow-[0_0_20px_rgba(56,189,248,0.15)]' 
-                    : 'bg-red-500/10 border-red-500/30 text-red-300'
-                }`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <p className="leading-relaxed font-medium">{errorMsg}</p>
-                      {notFoundPrompt && (
-                        <div className="mt-2.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setMode('signup');
-                              setErrorMsg('');
-                              setNotFoundPrompt(false);
-                            }}
-                            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-[#38bdf8] to-[#0284c7] text-[#00354a] font-bold text-xs shadow-[0_0_12px_rgba(56,189,248,0.4)] hover:brightness-110 active:scale-95 transition-all cursor-pointer"
-                          >
-                            <span>Create account with {email || 'this email'}</span>
-                            <span className="text-sm font-black">→</span>
-                          </button>
-                        </div>
-                      )}
+              {pendingVerification ? (
+                /* Verification View */
+                <div>
+                  <div className="text-center sm:text-left mb-6">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#38bdf8]/10 border border-[#38bdf8]/30 text-[#38bdf8] text-xs font-mono mb-3">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#38bdf8] animate-pulse" />
+                      <span>Verification Required</span>
                     </div>
-                    {notFoundPrompt && (
-                      <span className="shrink-0 text-[#38bdf8] text-base animate-pulse">✨</span>
-                    )}
+                    <h1 className="text-2xl font-bold tracking-tight text-white mb-1.5">
+                      Check your email
+                    </h1>
+                    <p className="text-xs sm:text-sm text-[#94a3b8] leading-relaxed">
+                      Enter the 6-digit code sent to <strong className="text-white">{email}</strong>, or skip for now during development.
+                    </p>
                   </div>
-                </div>
-              )}
 
-              {/* Credentials Form */}
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Email Input */}
-                <div>
-                  <label className="block text-xs text-[#cbd5e1] font-medium mb-1.5">
-                    Email
-                  </label>
-                  <div className="relative flex items-center">
-                    <Mail className="absolute left-3.5 text-[#64748b] w-4 h-4 pointer-events-none" />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      required
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white text-sm placeholder-[#64748b] focus:outline-none focus:border-[#38bdf8] focus:ring-1 focus:ring-[#38bdf8]/50 transition-all duration-150"
-                    />
-                  </div>
-                </div>
+                  {errorMsg && (
+                    <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs">
+                      {errorMsg}
+                    </div>
+                  )}
 
-                {/* Password Input */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs text-[#cbd5e1] font-medium">
-                      Password
-                    </label>
-                    {mode === 'signin' && (
-                      <a href="#" className="text-xs text-[#38bdf8] hover:underline transition-colors">
-                        Forgot password?
-                      </a>
-                    )}
-                  </div>
-                  <div className="relative flex items-center">
-                    <Lock className="absolute left-3.5 text-[#64748b] w-4 h-4 pointer-events-none" />
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      required
-                      className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white text-sm placeholder-[#64748b] focus:outline-none focus:border-[#38bdf8] focus:ring-1 focus:ring-[#38bdf8]/50 transition-all duration-150"
-                    />
+                  <form onSubmit={handleVerifyCode} className="space-y-4">
+                    <div>
+                      <label className="block text-xs text-[#cbd5e1] font-medium mb-1.5">
+                        6-Digit Verification Code
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={verificationCode}
+                        onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                        placeholder="123456"
+                        autoFocus
+                        className="w-full text-center tracking-[0.5em] font-mono text-xl py-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder-[#64748b] focus:outline-none focus:border-[#38bdf8] focus:ring-1 focus:ring-[#38bdf8]/50 transition-all"
+                      />
+                    </div>
+
+                    <div className="pt-2 space-y-2.5">
+                      <button
+                        type="submit"
+                        disabled={isLoading || verificationCode.length < 6}
+                        className="w-full py-3 px-6 rounded-xl text-xs font-bold uppercase tracking-wider text-[#00354a] bg-gradient-to-r from-[#38bdf8] to-[#0284c7] hover:shadow-[0_0_25px_rgba(56,189,248,0.5)] active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 fill-current" />}
+                        <span>Verify Code &amp; Continue</span>
+                      </button>
+
+                      {/* ⚡ Skip verification for now */}
+                      <button
+                        type="button"
+                        onClick={handleSkipVerification}
+                        className="w-full py-3 px-4 rounded-xl text-xs font-semibold text-[#38bdf8] bg-white/[0.04] hover:bg-white/[0.08] border border-[#38bdf8]/30 hover:border-[#38bdf8]/60 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shadow-[0_0_15px_rgba(56,189,248,0.15)]"
+                      >
+                        <span>⚡ Skip Verification for Now (Dev Mode)</span>
+                        <span className="text-sm">→</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPendingVerification(false);
+                          setErrorMsg('');
+                          setVerificationCode('');
+                        }}
+                        className="w-full text-center text-xs text-[#94a3b8] hover:text-white pt-2 transition-colors cursor-pointer"
+                      >
+                        ← Back to edit email
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              ) : (
+                /* Standard Credentials Flow */
+                <>
+                  {/* Mode Switcher Pill */}
+                  <div className="flex p-1 mb-8 rounded-full bg-black/60 border border-white/10 relative">
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 text-[#64748b] hover:text-white transition-colors p-1"
+                      onClick={() => { setMode('signin'); setErrorMsg(''); setNotFoundPrompt(false); }}
+                      className={`flex-1 py-2 text-center rounded-full text-xs font-semibold transition-all duration-300 ${
+                        mode === 'signin'
+                          ? 'bg-[#38bdf8] text-[#00354a] shadow-[0_0_15px_rgba(56,189,248,0.4)]'
+                          : 'text-[#94a3b8] hover:text-white'
+                      }`}
                     >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      Sign In
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setMode('signup'); setErrorMsg(''); setNotFoundPrompt(false); }}
+                      className={`flex-1 py-2 text-center rounded-full text-xs font-semibold transition-all duration-300 ${
+                        mode === 'signup'
+                          ? 'bg-[#38bdf8] text-[#00354a] shadow-[0_0_15px_rgba(56,189,248,0.4)]'
+                          : 'text-[#94a3b8] hover:text-white'
+                      }`}
+                    >
+                      Create Account
                     </button>
                   </div>
-                  <div className="flex items-center justify-between mt-1 text-[11px] text-[#64748b]">
-                    <span>
-                      {mode === 'signup'
-                        ? 'Min. 8 characters (or 15 if strict policy is enabled in Clerk)'
-                        : 'Enter your account password'}
-                    </span>
-                    {password.length > 0 && (
-                      <span className={`font-mono text-[10px] ${password.length >= 8 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                        {password.length} chars
-                      </span>
-                    )}
+
+                  {/* Headline & Contextual Subtext */}
+                  <div className="mb-8 text-center sm:text-left">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={mode}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <h1 className="text-2xl font-bold tracking-tight text-white mb-2">
+                          {mode === 'signin' ? 'Welcome back' : 'Create your account'}
+                        </h1>
+                        <p className="text-sm text-[#94a3b8] leading-relaxed">
+                          {mode === 'signin'
+                            ? 'Sign in to access your papers and analysis history.'
+                            : 'Get started with AuraScholar. It only takes a moment.'}
+                        </p>
+                      </motion.div>
+                    </AnimatePresence>
                   </div>
-                </div>
 
-                {/* Session persistence checkbox */}
-                <div className="flex items-center justify-between pt-1">
-                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={keepSession}
-                      onChange={(e) => setKeepSession(e.target.checked)}
-                      className="w-4 h-4 rounded bg-black/40 border border-white/20 text-[#38bdf8] focus:ring-0 focus:ring-offset-0 focus:border-[#38bdf8] cursor-pointer"
-                    />
-                    <span className="text-xs text-[#cbd5e1]">Keep me signed in</span>
-                  </label>
-                </div>
+                  {/* Federated Social Logins */}
+                  <div className="grid grid-cols-2 gap-3 mb-6">
+                    <button
+                      type="button"
+                      onClick={() => handleSocialAuth('google')}
+                      disabled={isLoading}
+                      className="group flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 hover:border-white/25 transition-all duration-200 active:scale-[0.98] text-white text-xs font-medium"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24">
+                        <path d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.3 9 5 12 5z" fill="#EA4335" />
+                        <path d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5.1 3.7-8.8z" fill="#4285F4" />
+                        <path d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.8s.2-2.1.4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z" fill="#FBBC05" />
+                        <path d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.3-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z" fill="#34A853" />
+                      </svg>
+                      <span>Google</span>
+                    </button>
 
-                {/* Primary Celestial CTA */}
-                <div className="pt-3">
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full py-3 px-6 rounded-xl text-xs font-bold uppercase tracking-wider text-[#00354a] bg-gradient-to-r from-[#38bdf8] to-[#0284c7] hover:shadow-[0_0_25px_rgba(56,189,248,0.5)] hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-[#00354a]" />
-                    ) : (
-                      <Sparkles className="w-4 h-4 fill-current" />
-                    )}
-                    <span>
-                      {isLoading
-                        ? 'Signing in...'
-                        : mode === 'signin'
-                        ? 'Sign In'
-                        : 'Create Account'}
+                    <button
+                      type="button"
+                      onClick={() => handleSocialAuth('github')}
+                      disabled={isLoading}
+                      className="group flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 hover:border-white/25 transition-all duration-200 active:scale-[0.98] text-white text-xs font-medium"
+                    >
+                      <svg className="w-4 h-4 fill-white group-hover:fill-[#38bdf8] transition-colors" viewBox="0 0 24 24">
+                        <path clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" fillRule="evenodd" />
+                      </svg>
+                      <span>GitHub</span>
+                    </button>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="relative flex items-center justify-center my-6">
+                    <div className="w-full border-t border-white/10" />
+                    <span className="absolute bg-[#080812] px-3 font-mono text-[10px] text-[#64748b] tracking-wider uppercase">
+                      Or Continue With Email
                     </span>
-                  </button>
-                </div>
-              </form>
+                  </div>
+
+                  {/* Error Message & Interactive Auto-Option for New Users */}
+                  {errorMsg && (
+                    <div className={`mb-4 p-3.5 rounded-xl border text-xs transition-all ${
+                      notFoundPrompt 
+                        ? 'bg-[#38bdf8]/10 border-[#38bdf8]/40 text-white shadow-[0_0_20px_rgba(56,189,248,0.15)]' 
+                        : 'bg-red-500/10 border-red-500/30 text-red-300'
+                    }`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <p className="leading-relaxed font-medium">{errorMsg}</p>
+                          {notFoundPrompt && (
+                            <div className="mt-2.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setMode('signup');
+                                  setErrorMsg('');
+                                  setNotFoundPrompt(false);
+                                }}
+                                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-[#38bdf8] to-[#0284c7] text-[#00354a] font-bold text-xs shadow-[0_0_12px_rgba(56,189,248,0.4)] hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+                              >
+                                <span>Create account with {email || 'this email'}</span>
+                                <span className="text-sm font-black">→</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        {notFoundPrompt && (
+                          <span className="shrink-0 text-[#38bdf8] text-base animate-pulse">✨</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Credentials Form */}
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Email Input */}
+                    <div>
+                      <label className="block text-xs text-[#cbd5e1] font-medium mb-1.5">
+                        Email
+                      </label>
+                      <div className="relative flex items-center">
+                        <Mail className="absolute left-3.5 text-[#64748b] w-4 h-4 pointer-events-none" />
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="you@example.com"
+                          required
+                          className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white text-sm placeholder-[#64748b] focus:outline-none focus:border-[#38bdf8] focus:ring-1 focus:ring-[#38bdf8]/50 transition-all duration-150"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Password Input */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs text-[#cbd5e1] font-medium">
+                          Password
+                        </label>
+                        {mode === 'signin' && (
+                          <a href="#" className="text-xs text-[#38bdf8] hover:underline transition-colors">
+                            Forgot password?
+                          </a>
+                        )}
+                      </div>
+                      <div className="relative flex items-center">
+                        <Lock className="absolute left-3.5 text-[#64748b] w-4 h-4 pointer-events-none" />
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="••••••••••••"
+                          required
+                          className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white text-sm placeholder-[#64748b] focus:outline-none focus:border-[#38bdf8] focus:ring-1 focus:ring-[#38bdf8]/50 transition-all duration-150"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 text-[#64748b] hover:text-white transition-colors p-1"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between mt-1 text-[11px] text-[#64748b]">
+                        <span>
+                          {mode === 'signup'
+                            ? 'Min. 8 characters (or 15 if strict policy is enabled in Clerk)'
+                            : 'Enter your account password'}
+                        </span>
+                        {password.length > 0 && (
+                          <span className={`font-mono text-[10px] ${password.length >= 8 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {password.length} chars
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Session persistence checkbox */}
+                    <div className="flex items-center justify-between pt-1">
+                      <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={keepSession}
+                          onChange={(e) => setKeepSession(e.target.checked)}
+                          className="w-4 h-4 rounded bg-black/40 border border-white/20 text-[#38bdf8] focus:ring-0 focus:ring-offset-0 focus:border-[#38bdf8] cursor-pointer"
+                        />
+                        <span className="text-xs text-[#cbd5e1]">Keep me signed in</span>
+                      </label>
+                    </div>
+
+                    {/* Primary Celestial CTA */}
+                    <div className="pt-3">
+                      <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="w-full py-3 px-6 rounded-xl text-xs font-bold uppercase tracking-wider text-[#00354a] bg-gradient-to-r from-[#38bdf8] to-[#0284c7] hover:shadow-[0_0_25px_rgba(56,189,248,0.5)] hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                      >
+                        {isLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-[#00354a]" />
+                        ) : (
+                          <Sparkles className="w-4 h-4 fill-current" />
+                        )}
+                        <span>
+                          {isLoading
+                            ? 'Signing in...'
+                            : mode === 'signin'
+                            ? 'Sign In'
+                            : 'Create Account'}
+                        </span>
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
 
               {/* Security & Integrity Protocol Footer */}
               <div className="mt-6 pt-5 border-t border-white/5 flex items-center justify-center gap-2 text-[#94a3b8]">
