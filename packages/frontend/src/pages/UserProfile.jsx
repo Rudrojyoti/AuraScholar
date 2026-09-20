@@ -1180,8 +1180,8 @@ export default function UserProfile({
                         <span className="text-xs font-medium text-white font-display">
                           Qwen / ModelScope API Key
                         </span>
-                        <span className={`text-[11px] font-mono ${qwenKey ? 'text-emerald-400' : 'text-slate-400'}`}>
-                          {qwenKey ? 'Active (CoT Reasoning)' : 'Not Configured (BYOK)'}
+                        <span className="text-[11px] font-mono text-emerald-400">
+                          {qwenKey ? 'Connected (BYOK)' : 'Connected (Server Qwen 3.8 Flash-Next)'}
                         </span>
                       </div>
                       <div className="relative">

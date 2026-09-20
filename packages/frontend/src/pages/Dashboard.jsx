@@ -186,12 +186,9 @@ export const Dashboard = ({
       }
       const parsed = saved ? JSON.parse(saved) : {};
 
-      // Verified active backend cloud engine: Gemini 2.5 Flash
-      const activeList = ['Gemini 2.5 Flash'];
+      // Verified active backend cloud engines: Qwen 3.8 & Gemini 2.5 Flash
+      const activeList = ['Qwen 3.8 Flash-Next', 'Gemini 2.5 Flash'];
 
-      if (parsed.qwenKey && parsed.qwenKey.trim().length > 5) {
-        activeList.push('Qwen 2.5 / QwQ');
-      }
       if (parsed.groqKey && parsed.groqKey.trim().length > 5 && !parsed.groqKey.includes('gsk_99a8bF21')) {
         activeList.push('Groq LLaMA 3.3');
       }
@@ -199,12 +196,12 @@ export const Dashboard = ({
         activeList.push('Claude 3.7');
       }
 
-      const selectedLead = parsed.leadModel || 'gemini-2-flash';
+      const selectedLead = parsed.leadModel || 'qwen-2.5-qwq';
       const modelLabels = {
-        'gemini-2-flash': 'Gemini 2.5 Flash (Server)',
-        'qwen-2.5-qwq': parsed.qwenKey ? 'Qwen 2.5 / QwQ' : 'Gemini 2.5 (Fallback)',
-        'claude-3-7-sonnet': parsed.anthropicKey ? 'Claude 3.7' : 'Gemini 2.5 (Fallback)',
-        'groq-llama-70b': parsed.groqKey ? 'Groq LLaMA 3.3' : 'Gemini 2.5 (Fallback)',
+        'qwen-2.5-qwq': 'Qwen 3.8 Flash-Next',
+        'gemini-2-flash': 'Gemini 2.5 Flash',
+        'claude-3-7-sonnet': parsed.anthropicKey ? 'Claude 3.7' : 'Qwen 3.8 (Server)',
+        'groq-llama-70b': parsed.groqKey ? 'Groq LLaMA 3.3' : 'Qwen 3.8 (Server)',
         'deepseek-r1': 'DeepSeek R1',
         'multi-referee': `${activeList.length} Models Consensus`
       };
@@ -212,14 +209,14 @@ export const Dashboard = ({
       return {
         count: activeList.length,
         models: activeList,
-        leadName: modelLabels[selectedLead] || 'Gemini 2.5 Flash (Server)',
-        hasByok: activeList.length > 1
+        leadName: modelLabels[selectedLead] || 'Qwen 3.8 Flash-Next',
+        hasByok: activeList.length > 2
       };
     } catch (e) {
       return {
-        count: 1,
-        models: ['Gemini 2.5 Flash'],
-        leadName: 'Gemini 2.5 Flash (Server)',
+        count: 2,
+        models: ['Qwen 3.8 Flash-Next', 'Gemini 2.5 Flash'],
+        leadName: 'Qwen 3.8 Flash-Next',
         hasByok: false
       };
     }

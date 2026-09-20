@@ -31,7 +31,8 @@ const callQwenChat = async (messages, options = {}) => {
   }
 
   const data = await response.json();
-  return data.choices?.[0]?.message?.content || '';
+  const msg = data.choices?.[0]?.message;
+  return (msg?.content || msg?.reasoning_content || '').trim();
 };
 
 /**
