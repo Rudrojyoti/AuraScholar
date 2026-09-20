@@ -7,7 +7,9 @@ export default function UserProfile({
   userEmail: userEmailProp = 'researcher@lab.org',
   onBack,
   onLogout,
-  initialTab = 'identity'
+  initialTab = 'identity',
+  customAvatar = null,
+  onAvatarChange = null
 }) {
   let clerkUser = null;
   try {
@@ -26,12 +28,20 @@ export default function UserProfile({
   // Profile info from authenticated user or fallback
   const resolvedDisplayName = user?.fullName || user?.username || (userEmail && !userEmail.includes('researcher@') ? userEmail.split('@')[0] : 'Lead Researcher');
   const resolvedEmail = user?.primaryEmailAddress?.emailAddress || userEmail || 'researcher@lab.org';
-  const resolvedAvatar = user?.imageUrl || null;
+
+  const avatarStorageKey = `aurascholar_custom_avatar_${user?.id || userEmail || 'default'}`;
+  const getInitialAvatar = () => {
+    try {
+      return customAvatar || localStorage.getItem(avatarStorageKey) || null;
+    } catch (e) {
+      return null;
+    }
+  };
 
   const [displayName, setDisplayName] = useState(resolvedDisplayName);
   const [email, setEmail] = useState(resolvedEmail);
   const [affiliation, setAffiliation] = useState('Machine Learning & AI Research');
-  const [avatarUrl, setAvatarUrl] = useState(resolvedAvatar);
+  const [avatarUrl, setAvatarUrl] = useState(getInitialAvatar);
   const [researchFields, setResearchFields] = useState([
     'Quantum Gravity',
     'Transformer Architectures',
@@ -134,9 +144,8 @@ export default function UserProfile({
       if (user.primaryEmailAddress?.emailAddress) {
         setEmail(user.primaryEmailAddress.emailAddress);
       }
-      if (user.imageUrl) {
-        setAvatarUrl(user.imageUrl);
-      }
+      // Note: We deliberately do NOT set avatarUrl from user.imageUrl.
+      // The avatar remains empty/initials by default unless explicitly uploaded.
     }
   }, [user, userEmail]);
 
@@ -170,12 +179,19 @@ export default function UserProfile({
         if (parsed.autoRenderLatex !== undefined) setAutoRenderLatex(parsed.autoRenderLatex);
         if (parsed.dailyDigest !== undefined) setDailyDigest(parsed.dailyDigest);
         if (parsed.is2FAEnabled !== undefined) setIs2FAEnabled(parsed.is2FAEnabled);
-        if (parsed.avatarUrl) setAvatarUrl(parsed.avatarUrl);
+      }
+
+      // Check if user uploaded a custom avatar
+      const custom = localStorage.getItem(avatarStorageKey);
+      if (custom) {
+        setAvatarUrl(custom);
+      } else {
+        setAvatarUrl(null);
       }
     } catch (e) {
       console.warn('Failed to load profile data from storage', e);
     }
-  }, [user, userEmail]);
+  }, [user, userEmail, avatarStorageKey]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -204,7 +220,12 @@ export default function UserProfile({
       }
       const reader = new FileReader();
       reader.onload = (event) => {
-        setAvatarUrl(event.target.result);
+        const newAvatar = event.target.result;
+        setAvatarUrl(newAvatar);
+        try {
+          localStorage.setItem(avatarStorageKey, newAvatar);
+        } catch (err) {}
+        if (onAvatarChange) onAvatarChange(newAvatar);
         showToast('Avatar updated successfully.');
       };
       reader.readAsDataURL(file);
@@ -213,6 +234,10 @@ export default function UserProfile({
 
   const resetAvatar = () => {
     setAvatarUrl(null);
+    try {
+      localStorage.removeItem(avatarStorageKey);
+    } catch (err) {}
+    if (onAvatarChange) onAvatarChange(null);
     showToast('Avatar removed. Using default initials.');
   };
 
@@ -269,6 +294,12 @@ export default function UserProfile({
       const storageKey = `aurascholar_profile_${user?.id || userEmail || 'default'}`;
       localStorage.setItem(storageKey, JSON.stringify(profileData));
       localStorage.setItem('aurascholar_user_profile_data', JSON.stringify(profileData));
+      if (avatarUrl) {
+        localStorage.setItem(avatarStorageKey, avatarUrl);
+      } else {
+        localStorage.removeItem(avatarStorageKey);
+      }
+      if (onAvatarChange) onAvatarChange(avatarUrl);
     } catch (e) {
       console.error(e);
     }

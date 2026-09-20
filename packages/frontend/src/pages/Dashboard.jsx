@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import UserProfile from './UserProfile';
 
@@ -86,7 +86,24 @@ export const Dashboard = ({
 }) => {
   const displayName = user?.fullName || user?.username || (userEmail ? userEmail.split('@')[0] : 'Researcher');
   const firstName = user?.firstName || displayName.split(' ')[0] || 'Researcher';
-  const avatarUrl = user?.imageUrl || null;
+  const avatarStorageKey = `aurascholar_custom_avatar_${user?.id || userEmail || 'default'}`;
+  const [customAvatar, setCustomAvatar] = useState(() => {
+    try {
+      return localStorage.getItem(avatarStorageKey) || null;
+    } catch (e) {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(avatarStorageKey);
+      setCustomAvatar(saved || null);
+    } catch (e) {
+      setCustomAvatar(null);
+    }
+  }, [avatarStorageKey]);
+
   const initial = (firstName || displayName || 'R').charAt(0).toUpperCase();
 
   const [papers, setPapers] = useState(initialPapers);
@@ -309,6 +326,8 @@ export const Dashboard = ({
         initialTab={profileInitialTab}
         onBack={() => setIsProfileView(false)}
         onLogout={onLogout}
+        customAvatar={customAvatar}
+        onAvatarChange={(newAv) => setCustomAvatar(newAv)}
       />
     );
   }
@@ -486,8 +505,8 @@ export const Dashboard = ({
               title="Open User Profile & Account Settings"
             >
               <div className="w-8 h-8 rounded-full bg-secondary-container text-secondary flex items-center justify-center font-headline-sm text-xs font-semibold ring-1 ring-secondary/40 shadow-inner overflow-hidden shrink-0">
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                {customAvatar ? (
+                  <img src={customAvatar} alt={displayName} className="w-full h-full object-cover" />
                 ) : (
                   <span>{initial}</span>
                 )}

@@ -76,6 +76,24 @@ const uploadPdf = async (req, res) => {
   }
 };
 
+const listUserPapers = async (req, res) => {
+  try {
+    const userId = req.auth?.userId || req.query.userId || 'guest_user';
+    const papers = await paperStore.listPapersByUser(userId);
+    return res.status(200).json({
+      status: 'success',
+      data: { papers }
+    });
+  } catch (error) {
+    console.error('List papers error:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error listing papers'
+    });
+  }
+};
+
 module.exports = {
-  uploadPdf
+  uploadPdf,
+  listUserPapers
 };

@@ -4,6 +4,7 @@ const { clerkInit } = require('./middleware/authMiddleware');
 const healthRoutes = require('./routes/healthRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const queryRoutes = require('./routes/queryRoutes');
+const paperRoutes = require('./routes/paperRoutes');
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use(clerkInit);
 app.use('/api/health', healthRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/ask', queryRoutes);
+app.use('/api/papers', paperRoutes);
 
 // 404 Handler
 app.use((req, res) => {
