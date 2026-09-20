@@ -124,6 +124,60 @@ export const Dashboard = ({
     setIsProfileView(true);
   };
 
+  const getActiveModelsTelemetry = () => {
+    try {
+      const storageKey = `aurascholar_profile_${user?.id || userEmail || 'default'}`;
+      let saved = localStorage.getItem(storageKey);
+      if (!saved) {
+        saved = localStorage.getItem('aurascholar_user_profile_data');
+      }
+      const parsed = saved ? JSON.parse(saved) : {};
+
+      // Verified active backend cloud engine: Gemini 2.5 Flash
+      const activeList = ['Gemini 2.5 Flash'];
+
+      if (parsed.qwenKey && parsed.qwenKey.trim().length > 5) {
+        activeList.push('Qwen 2.5 / QwQ');
+      }
+      if (parsed.groqKey && parsed.groqKey.trim().length > 5 && !parsed.groqKey.includes('gsk_99a8bF21')) {
+        activeList.push('Groq LLaMA 3.3');
+      }
+      if (parsed.anthropicKey && parsed.anthropicKey.trim().length > 5 && !parsed.anthropicKey.includes('sk-ant-api03-8819')) {
+        activeList.push('Claude 3.7');
+      }
+
+      const selectedLead = parsed.leadModel || 'gemini-2-flash';
+      const modelLabels = {
+        'gemini-2-flash': 'Gemini 2.5 Flash (Server)',
+        'qwen-2.5-qwq': parsed.qwenKey ? 'Qwen 2.5 / QwQ' : 'Gemini 2.5 (Fallback)',
+        'claude-3-7-sonnet': parsed.anthropicKey ? 'Claude 3.7' : 'Gemini 2.5 (Fallback)',
+        'groq-llama-70b': parsed.groqKey ? 'Groq LLaMA 3.3' : 'Gemini 2.5 (Fallback)',
+        'deepseek-r1': 'DeepSeek R1',
+        'multi-referee': `${activeList.length} Models Consensus`
+      };
+
+      return {
+        count: activeList.length,
+        models: activeList,
+        leadName: modelLabels[selectedLead] || 'Gemini 2.5 Flash (Server)',
+        hasByok: activeList.length > 1
+      };
+    } catch (e) {
+      return {
+        count: 1,
+        models: ['Gemini 2.5 Flash'],
+        leadName: 'Gemini 2.5 Flash (Server)',
+        hasByok: false
+      };
+    }
+  };
+
+  const [modelTelemetry, setModelTelemetry] = useState(getActiveModelsTelemetry);
+
+  useEffect(() => {
+    setModelTelemetry(getActiveModelsTelemetry());
+  }, [isProfileView, user, userEmail]);
+
   const fileInputRef = useRef(null);
   const chatBottomRef = useRef(null);
 
@@ -634,19 +688,29 @@ export const Dashboard = ({
               <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-secondary/20 group-hover:bg-secondary transition-colors" />
             </div>
 
-            <div className="celestial-glass rounded-xl p-5 relative overflow-hidden group hover:border-primary/40 transition-all duration-300">
+            <div 
+              onClick={() => openUserProfile('engines')}
+              className="celestial-glass rounded-xl p-5 relative overflow-hidden group hover:border-primary/40 transition-all duration-300 cursor-pointer"
+              title="Click to configure AI Models & API Keys"
+            >
               <div className="flex items-center justify-between mb-3">
                 <span className="text-label-md font-label-md text-on-surface-variant text-xs">AI Models</span>
                 <div className="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
                   <span className="material-symbols-outlined text-lg">neurology</span>
                 </div>
               </div>
-              <div className="text-headline-md font-headline-md text-on-surface font-semibold mb-1 text-xl">
-                3 Models Active
+              <div className="text-headline-md font-headline-md text-on-surface font-semibold mb-1 text-xl flex items-baseline gap-2">
+                <span>{modelTelemetry.count} {modelTelemetry.count === 1 ? 'Model' : 'Models'} Active</span>
               </div>
-              <div className="flex items-center gap-1.5 text-body-sm font-body-sm text-primary text-xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                <span>Models Active</span>
+              <div className="flex items-center justify-between gap-1 text-body-sm font-body-sm text-xs">
+                <div className="flex items-center gap-1.5 text-primary min-w-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  <span className="truncate">{modelTelemetry.leadName}</span>
+                </div>
+                <span className="text-[10px] text-on-surface-variant group-hover:text-primary transition-colors flex items-center gap-0.5 shrink-0">
+                  {modelTelemetry.hasByok ? 'Manage' : 'BYOK Keys'}
+                  <span className="material-symbols-outlined text-[10px]">arrow_forward</span>
+                </span>
               </div>
               <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary/20 group-hover:bg-primary transition-colors" />
             </div>

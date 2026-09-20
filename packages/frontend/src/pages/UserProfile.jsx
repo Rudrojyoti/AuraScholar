@@ -1108,7 +1108,7 @@ export default function UserProfile({
                         <option value="gemini-2-flash">Gemini 2.5 Flash (Fast Multimodal &amp; Search)</option>
                         <option value="groq-llama-70b">Groq LLaMA 3.3 70B (High-Speed Local Reasoning)</option>
                         <option value="deepseek-r1">DeepSeek R1 (Open Mathematical Proof Benchmark)</option>
-                        <option value="multi-referee">Multi-Model Consensus (3 Models Parallel Evaluation)</option>
+                        <option value="multi-referee">Multi-Model Consensus (Cross-Engine Parallel Evaluation)</option>
                       </select>
                       <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1132,7 +1132,7 @@ export default function UserProfile({
                           Qwen / ModelScope API Key
                         </span>
                         <span className={`text-[11px] font-mono ${qwenKey ? 'text-emerald-400' : 'text-slate-400'}`}>
-                          {qwenKey ? 'Active (CoT Reasoning)' : 'Optional (Free Tier)'}
+                          {qwenKey ? 'Active (CoT Reasoning)' : 'Not Configured (BYOK)'}
                         </span>
                       </div>
                       <div className="relative">
@@ -1163,8 +1163,8 @@ export default function UserProfile({
                         <span className="text-xs font-medium text-white font-display">
                           Google Gemini API Key
                         </span>
-                        <span className={`text-[11px] font-mono ${geminiKey ? 'text-emerald-400' : 'text-slate-400'}`}>
-                          {geminiKey ? 'Connected' : 'Optional (Fallback Server Active)'}
+                        <span className="text-[11px] font-mono text-emerald-400">
+                          {geminiKey ? 'Connected (BYOK)' : 'Connected (Server Gemini 2.5 Flash)'}
                         </span>
                       </div>
                       <div className="relative">
@@ -1195,7 +1195,9 @@ export default function UserProfile({
                         <span className="text-xs font-medium text-white font-display">
                           Groq Cloud API Key
                         </span>
-                        <span className="text-[11px] font-mono text-emerald-400">Connected (850 tokens/sec)</span>
+                        <span className={`text-[11px] font-mono ${groqKey ? 'text-emerald-400' : 'text-slate-400'}`}>
+                          {groqKey ? 'Connected (850 tokens/sec)' : 'Not Configured'}
+                        </span>
                       </div>
                       <div className="relative">
                         <input
@@ -1225,7 +1227,9 @@ export default function UserProfile({
                         <span className="text-xs font-medium text-white font-display">
                           Anthropic API Key (Claude)
                         </span>
-                        <span className="text-[11px] font-mono text-emerald-400">Connected</span>
+                        <span className={`text-[11px] font-mono ${anthropicKey ? 'text-emerald-400' : 'text-slate-400'}`}>
+                          {anthropicKey ? 'Connected' : 'Not Configured'}
+                        </span>
                       </div>
                       <div className="relative">
                         <input
