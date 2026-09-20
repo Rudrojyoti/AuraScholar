@@ -80,3 +80,27 @@ create policy "Service role has full access to paper_chunks"
   for all
   using (true)
   with check (true);
+
+-- 6. Profiles Table (Researcher Preferences & Custom Avatar)
+create table if not exists public.profiles (
+  user_id text primary key,
+  display_name text,
+  email text,
+  affiliation text,
+  avatar_url text,
+  research_fields text[] default array[]::text[],
+  lead_model text default 'qwen-2.5-qwq',
+  citation_format text default 'bibtex',
+  auto_render_latex boolean default true,
+  daily_digest boolean default true,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.profiles enable row level security;
+
+create policy "Service role has full access to profiles"
+  on public.profiles
+  for all
+  using (true)
+  with check (true);
+

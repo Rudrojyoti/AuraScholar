@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
 export default function UserProfile({
   user: userProp = null,
   userEmail: userEmailProp = 'researcher@lab.org',
@@ -195,6 +197,31 @@ export default function UserProfile({
     } catch (e) {
       console.warn('Failed to load profile data from storage', e);
     }
+
+    // Sync profile preferences from Supabase cloud database
+    const targetUserId = user?.id || userEmail;
+    if (targetUserId) {
+      fetch(`${API_BASE_URL}/profile?userId=${encodeURIComponent(targetUserId)}`)
+        .then(res => res.json())
+        .then(json => {
+          if (json.status === 'success' && json.data) {
+            const d = json.data;
+            if (d.displayName) setDisplayName(d.displayName);
+            if (d.affiliation) setAffiliation(d.affiliation);
+            if (Array.isArray(d.researchFields) && d.researchFields.length > 0) setResearchFields(d.researchFields);
+            if (d.leadModel) setLeadModel(d.leadModel);
+            if (d.citationFormat) setCitationFormat(d.citationFormat);
+            if (d.autoRenderLatex !== undefined) setAutoRenderLatex(d.autoRenderLatex);
+            if (d.dailyDigest !== undefined) setDailyDigest(d.dailyDigest);
+            if (d.avatarUrl) {
+              setAvatarUrl(d.avatarUrl);
+              try { localStorage.setItem(avatarStorageKey, d.avatarUrl); } catch (e) {}
+              if (onAvatarChange) onAvatarChange(d.avatarUrl);
+            }
+          }
+        })
+        .catch(() => {});
+    }
   }, [user, userEmail, avatarStorageKey]);
 
   const showToast = (msg) => {
@@ -308,6 +335,28 @@ export default function UserProfile({
     } catch (e) {
       console.error(e);
     }
+
+    // Persist profile to Supabase database
+    const targetUserId = user?.id || userEmail;
+    if (targetUserId) {
+      fetch(`${API_BASE_URL}/profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: targetUserId,
+          displayName,
+          email,
+          affiliation,
+          avatarUrl,
+          researchFields,
+          leadModel,
+          citationFormat,
+          autoRenderLatex,
+          dailyDigest
+        })
+      }).catch(err => console.warn('Supabase profile sync error:', err));
+    }
+
     setIsSavedRecently(true);
     showToast('Changes saved to your account.');
     setTimeout(() => setIsSavedRecently(false), 2500);

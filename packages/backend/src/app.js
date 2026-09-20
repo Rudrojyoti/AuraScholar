@@ -5,6 +5,7 @@ const healthRoutes = require('./routes/healthRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const queryRoutes = require('./routes/queryRoutes');
 const paperRoutes = require('./routes/paperRoutes');
+const profileRoutes = require('./routes/profileRoutes');
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use('/api/health', healthRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/ask', queryRoutes);
 app.use('/api/papers', paperRoutes);
+app.use('/api/profile', profileRoutes);
 
 // 404 Handler
 app.use((req, res) => {
