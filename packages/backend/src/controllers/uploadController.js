@@ -48,9 +48,16 @@ const uploadPdf = async (req, res) => {
     // Generate initial summary using Qwen 3.8 / Gemini fallback
     const initialData = await llmService.generateQuickSummary(chunks);
 
-    // Update Paper with summary
+    // Update Paper with summary and extracted formula details
     paper.summary = initialData.summary;
     paper.methodology = initialData.methodology;
+    paper.contributions = initialData.contributions;
+    paper.limitations = initialData.limitations;
+    paper.futureWork = initialData.futureWork;
+    paper.equation = initialData.equation || null;
+    paper.equationTag = initialData.equationTag || null;
+    paper.sectionTitle = initialData.sectionTitle || null;
+    paper.sectionExcerpt = initialData.sectionExcerpt || null;
     await paper.save();
 
     return res.status(200).json({
@@ -62,6 +69,10 @@ const uploadPdf = async (req, res) => {
         contributions: initialData.contributions,
         limitations: initialData.limitations,
         futureWork: initialData.futureWork,
+        equation: initialData.equation || null,
+        equationTag: initialData.equationTag || null,
+        sectionTitle: initialData.sectionTitle || null,
+        sectionExcerpt: initialData.sectionExcerpt || null,
         numPages: chunks.length,
         message: `Successfully processed ${chunks.length} text chunks.`
       }
@@ -93,7 +104,25 @@ const listUserPapers = async (req, res) => {
   }
 };
 
+const getUserStats = async (req, res) => {
+  try {
+    const userId = req.auth?.userId || req.query.userId || 'guest_user';
+    const stats = await paperStore.getUserStats(userId);
+    return res.status(200).json({
+      status: 'success',
+      data: stats
+    });
+  } catch (error) {
+    console.error('Get user stats error:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: error.message || 'Error getting telemetry stats'
+    });
+  }
+};
+
 module.exports = {
   uploadPdf,
-  listUserPapers
+  listUserPapers,
+  getUserStats
 };
