@@ -14,34 +14,46 @@ function ClerkAppContent({ onOpenSettings }) {
   const [showSignIn, setShowSignIn] = useState(false);
   const { user } = useUser();
   const { signOut } = useClerk();
-  const { getToken } = useAuth();
+  const { getToken, isLoaded, isSignedIn } = useAuth();
 
   const handleLogout = () => {
     signOut();
   };
 
+  // Prevent flash of landing page while Clerk resolves session state
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-[#030308] flex items-center justify-center">
+        <div className="relative flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full border-2 border-cyan-400/20 border-t-cyan-400 animate-spin shadow-[0_0_20px_rgba(56,189,248,0.3)]" />
+          <div className="absolute w-2 h-2 rounded-full bg-cyan-300 animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isSignedIn) {
+    return (
+      <Dashboard 
+        user={user}
+        userEmail={user?.primaryEmailAddress?.emailAddress}
+        onLogout={handleLogout}
+        onOpenSettings={onOpenSettings}
+        getToken={getToken}
+      />
+    );
+  }
+
   return (
     <>
-      <SignedOut>
-        {!showSignIn ? (
-          <HeroSection onGetStarted={() => setShowSignIn(true)} />
-        ) : (
-          <SpaceAuthPage 
-            onBack={() => setShowSignIn(false)} 
-            onAuthSuccess={() => setShowSignIn(false)} 
-          />
-        )}
-      </SignedOut>
-
-      <SignedIn>
-        <Dashboard 
-          user={user}
-          userEmail={user?.primaryEmailAddress?.emailAddress}
-          onLogout={handleLogout}
-          onOpenSettings={onOpenSettings}
-          getToken={getToken}
+      {!showSignIn ? (
+        <HeroSection onGetStarted={() => setShowSignIn(true)} />
+      ) : (
+        <SpaceAuthPage 
+          onBack={() => setShowSignIn(false)} 
+          onAuthSuccess={() => setShowSignIn(false)} 
         />
-      </SignedIn>
+      )}
     </>
   );
 }
@@ -103,7 +115,10 @@ function SSOCallbackHandler({ onComplete }) {
         if (active) {
           // Clean the OAuth callback query param from the address bar
           window.history.replaceState(null, '', window.location.origin);
-          onComplete();
+          // Small buffer to let Clerk's reactive state propagate isSignedIn=true
+          setTimeout(() => {
+            if (active) onComplete();
+          }, 100);
         }
       }
     }
