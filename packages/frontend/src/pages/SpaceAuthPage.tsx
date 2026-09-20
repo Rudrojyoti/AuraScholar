@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ArrowLeft, 
-  Mail, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  Sparkles, 
-  ShieldCheck, 
-  Cpu, 
-  Layers, 
-  CheckCircle2,
+import { useSignIn, useSignUp, useClerk } from '@clerk/clerk-react';
+import {
+  ArrowLeft,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  Sparkles,
+  ShieldCheck,
   Loader2
 } from 'lucide-react';
 
@@ -33,37 +31,70 @@ export const SpaceAuthPage: React.FC<SpaceAuthPageProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  const { signIn, isLoaded: signInLoaded } = useSignIn();
+  const { signUp, isLoaded: signUpLoaded } = useSignUp();
+  const { setActive } = useClerk();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
     if (!email || !email.includes('@')) {
-      setErrorMsg('Please enter a valid research or institutional email.');
+      setErrorMsg('Please enter a valid email address.');
       return;
     }
-    if (!password || password.length < 6) {
-      setErrorMsg('Password must be at least 6 characters.');
+    if (!password || password.length < 8) {
+      setErrorMsg('Password must be at least 8 characters.');
       return;
     }
 
+    if (!signInLoaded || !signUpLoaded) return;
     setIsLoading(true);
-    // Simulate auth delay
-    setTimeout(() => {
-      setIsLoading(false);
-      if (onAuthSuccess) {
-        onAuthSuccess(email, mode);
+
+    try {
+      if (mode === 'signin') {
+        const result = await signIn.create({ identifier: email, password });
+        if (result.status === 'complete') {
+          await setActive({ session: result.createdSessionId });
+          onAuthSuccess?.(email, 'signin');
+        } else {
+          setErrorMsg('Sign in could not be completed. Please try again.');
+        }
+      } else {
+        const result = await signUp.create({ emailAddress: email, password });
+        if (result.status === 'complete') {
+          await setActive({ session: result.createdSessionId });
+          onAuthSuccess?.(email, 'signup');
+        } else if (result.status === 'missing_requirements') {
+          // Email verification required — send code
+          await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+          setErrorMsg('Check your email for a verification code. (Email verification flow coming soon)');
+        } else {
+          setErrorMsg('Account creation could not be completed. Please try again.');
+        }
       }
-    }, 900);
+    } catch (err: any) {
+      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || 'An error occurred. Please try again.';
+      setErrorMsg(msg);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleSocialAuth = (provider: 'google' | 'github') => {
+  const handleSocialAuth = async (provider: 'google' | 'github') => {
+    if (!signInLoaded) return;
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      await signIn.authenticateWithRedirect({
+        strategy: provider === 'google' ? 'oauth_google' : 'oauth_github',
+        redirectUrl: window.location.origin,
+        redirectUrlComplete: window.location.origin,
+      });
+    } catch (err: any) {
+      const msg = err?.errors?.[0]?.message || 'OAuth sign-in failed. Please try again.';
+      setErrorMsg(msg);
       setIsLoading(false);
-      if (onAuthSuccess) {
-        onAuthSuccess(`researcher.${provider}@demo.edu`, mode);
-      }
-    }, 700);
+    }
   };
 
   return (
