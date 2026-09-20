@@ -5,8 +5,9 @@ import Dashboard from './pages/Dashboard';
 import SpaceAuthPage from './pages/SpaceAuthPage';
 import SettingsModal from './components/ui/SettingsModal';
 
-// Detect if this page load is an OAuth callback from Clerk
-const isSSOCallback = () => window.location.hash.startsWith('#/sso-callback');
+// Detect if this page load is a Clerk OAuth callback
+// We add ?clerk_callback=1 to the redirectUrl so we can reliably detect it
+const isSSOCallback = () => new URLSearchParams(window.location.search).has('clerk_callback');
 
 // Sub-component for Clerk Authenticated Flow
 function ClerkAppContent({ onOpenSettings }) {
@@ -86,8 +87,8 @@ function App({ isGuestMode = false }) {
   if (!isGuestMode && isSSOCallback()) {
     return (
       <AuthenticateWithRedirectCallback
-        afterSignInUrl="/"
-        afterSignUpUrl="/"
+        afterSignInUrl={window.location.origin}
+        afterSignUpUrl={window.location.origin}
       />
     );
   }
