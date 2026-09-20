@@ -87,8 +87,8 @@ export const SpaceAuthPage: React.FC<SpaceAuthPageProps> = ({
     try {
       await signIn.authenticateWithRedirect({
         strategy: provider === 'google' ? 'oauth_google' : 'oauth_github',
-        redirectUrl: window.location.origin,
-        redirectUrlComplete: window.location.origin,
+        redirectUrl: `${window.location.origin}/#/sso-callback`,
+        redirectUrlComplete: `${window.location.origin}/`,
       });
     } catch (err: any) {
       const msg = err?.errors?.[0]?.message || 'OAuth sign-in failed. Please try again.';

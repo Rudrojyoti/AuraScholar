@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { SignedIn, SignedOut, useUser, useClerk, useAuth } from "@clerk/clerk-react";
+import { SignedIn, SignedOut, useUser, useClerk, useAuth, AuthenticateWithRedirectCallback } from "@clerk/clerk-react";
 import { HeroSection } from './components/ui/hero-section';
 import Dashboard from './pages/Dashboard';
 import SpaceAuthPage from './pages/SpaceAuthPage';
 import SettingsModal from './components/ui/SettingsModal';
+
+// Detect if this page load is an OAuth callback from Clerk
+const isSSOCallback = () => window.location.hash.startsWith('#/sso-callback');
 
 // Sub-component for Clerk Authenticated Flow
 function ClerkAppContent({ onOpenSettings }) {
@@ -76,6 +79,18 @@ function GuestAppContent({ onOpenSettings }) {
 
 function App({ isGuestMode = false }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Handle OAuth redirect from Clerk (Google, GitHub, etc.)
+  // Clerk sends the user back to /#/sso-callback — this component
+  // completes the token exchange and then redirects to the root.
+  if (!isGuestMode && isSSOCallback()) {
+    return (
+      <AuthenticateWithRedirectCallback
+        afterSignInUrl="/"
+        afterSignUpUrl="/"
+      />
+    );
+  }
 
   return (
     <div className="w-full min-h-screen">
