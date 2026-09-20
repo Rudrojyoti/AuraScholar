@@ -30,6 +30,7 @@ export const SpaceAuthPage: React.FC<SpaceAuthPageProps> = ({
   const [keepSession, setKeepSession] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [notFoundPrompt, setNotFoundPrompt] = useState(false);
 
   const { signIn, isLoaded: signInLoaded } = useSignIn();
   const { signUp, isLoaded: signUpLoaded } = useSignUp();
@@ -38,6 +39,7 @@ export const SpaceAuthPage: React.FC<SpaceAuthPageProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    setNotFoundPrompt(false);
 
     if (!email || !email.includes('@')) {
       setErrorMsg('Please enter a valid email address.');
@@ -74,8 +76,25 @@ export const SpaceAuthPage: React.FC<SpaceAuthPageProps> = ({
         }
       }
     } catch (err: any) {
-      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || 'An error occurred. Please try again.';
-      setErrorMsg(msg);
+      const code = err?.errors?.[0]?.code;
+      const originalMsg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || 'An error occurred. Please try again.';
+      
+      const isNotFound = code === 'form_identifier_not_found' || 
+                         originalMsg.toLowerCase().includes("couldn't find your account") ||
+                         originalMsg.toLowerCase().includes("not found") ||
+                         originalMsg.toLowerCase().includes("no user") ||
+                         originalMsg.toLowerCase().includes("no account");
+
+      if (isNotFound && mode === 'signin') {
+        setNotFoundPrompt(true);
+        setErrorMsg(`No account found for "${email}". Would you like to create one?`);
+      } else if (code === 'form_password_length_too_short' || originalMsg.toLowerCase().includes('15 characters') || originalMsg.toLowerCase().includes('characters long')) {
+        setNotFoundPrompt(false);
+        setErrorMsg(`${originalMsg} (Note: Minimum password length is configured in your Clerk Dashboard under User & Authentication > Password).`);
+      } else {
+        setNotFoundPrompt(false);
+        setErrorMsg(originalMsg);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -194,7 +213,7 @@ export const SpaceAuthPage: React.FC<SpaceAuthPageProps> = ({
               <div className="flex p-1 mb-8 rounded-full bg-black/60 border border-white/10 relative">
                 <button
                   type="button"
-                  onClick={() => { setMode('signin'); setErrorMsg(''); }}
+                  onClick={() => { setMode('signin'); setErrorMsg(''); setNotFoundPrompt(false); }}
                   className={`flex-1 py-2 text-center rounded-full text-xs font-semibold transition-all duration-300 ${
                     mode === 'signin'
                       ? 'bg-[#38bdf8] text-[#00354a] shadow-[0_0_15px_rgba(56,189,248,0.4)]'
@@ -205,7 +224,7 @@ export const SpaceAuthPage: React.FC<SpaceAuthPageProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setMode('signup'); setErrorMsg(''); }}
+                  onClick={() => { setMode('signup'); setErrorMsg(''); setNotFoundPrompt(false); }}
                   className={`flex-1 py-2 text-center rounded-full text-xs font-semibold transition-all duration-300 ${
                     mode === 'signup'
                       ? 'bg-[#38bdf8] text-[#00354a] shadow-[0_0_15px_rgba(56,189,248,0.4)]'
@@ -276,10 +295,37 @@ export const SpaceAuthPage: React.FC<SpaceAuthPageProps> = ({
                 </span>
               </div>
 
-              {/* Error Message */}
+              {/* Error Message & Interactive Auto-Option for New Users */}
               {errorMsg && (
-                <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs">
-                  {errorMsg}
+                <div className={`mb-4 p-3.5 rounded-xl border text-xs transition-all ${
+                  notFoundPrompt 
+                    ? 'bg-[#38bdf8]/10 border-[#38bdf8]/40 text-white shadow-[0_0_20px_rgba(56,189,248,0.15)]' 
+                    : 'bg-red-500/10 border-red-500/30 text-red-300'
+                }`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <p className="leading-relaxed font-medium">{errorMsg}</p>
+                      {notFoundPrompt && (
+                        <div className="mt-2.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMode('signup');
+                              setErrorMsg('');
+                              setNotFoundPrompt(false);
+                            }}
+                            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-[#38bdf8] to-[#0284c7] text-[#00354a] font-bold text-xs shadow-[0_0_12px_rgba(56,189,248,0.4)] hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+                          >
+                            <span>Create account with {email || 'this email'}</span>
+                            <span className="text-sm font-black">→</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {notFoundPrompt && (
+                      <span className="shrink-0 text-[#38bdf8] text-base animate-pulse">✨</span>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -332,6 +378,18 @@ export const SpaceAuthPage: React.FC<SpaceAuthPageProps> = ({
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
+                  </div>
+                  <div className="flex items-center justify-between mt-1 text-[11px] text-[#64748b]">
+                    <span>
+                      {mode === 'signup'
+                        ? 'Min. 8 characters (or 15 if strict policy is enabled in Clerk)'
+                        : 'Enter your account password'}
+                    </span>
+                    {password.length > 0 && (
+                      <span className={`font-mono text-[10px] ${password.length >= 8 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {password.length} chars
+                      </span>
+                    )}
                   </div>
                 </div>
 
