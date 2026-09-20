@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { SignedIn, SignedOut, useUser, useClerk, useAuth, AuthenticateWithRedirectCallback } from "@clerk/clerk-react";
+import React, { useState, useEffect } from 'react';
+import { SignedIn, SignedOut, useUser, useClerk, useAuth } from "@clerk/clerk-react";
 import { HeroSection } from './components/ui/hero-section';
 import Dashboard from './pages/Dashboard';
 import SpaceAuthPage from './pages/SpaceAuthPage';
@@ -79,19 +79,68 @@ function GuestAppContent({ onOpenSettings }) {
   );
 }
 
+// Seamless OAuth Callback Handler
+// Completes token exchange, cleans URL params via replaceState, and transitions straight to the dashboard
+function SSOCallbackHandler({ onComplete }) {
+  const clerk = useClerk();
+
+  useEffect(() => {
+    let active = true;
+
+    async function processCallback() {
+      try {
+        if (clerk && typeof clerk.handleRedirectCallback === 'function') {
+          await clerk.handleRedirectCallback({
+            afterSignInUrl: window.location.origin,
+            afterSignUpUrl: window.location.origin,
+            signInFallbackRedirectUrl: window.location.origin,
+            signUpFallbackRedirectUrl: window.location.origin,
+          });
+        }
+      } catch (err) {
+        console.error('SSO Callback error:', err);
+      } finally {
+        if (active) {
+          // Clean the OAuth callback query param from the address bar
+          window.history.replaceState(null, '', window.location.origin);
+          onComplete();
+        }
+      }
+    }
+
+    processCallback();
+
+    return () => {
+      active = false;
+    };
+  }, [clerk, onComplete]);
+
+  return (
+    <div className="min-h-screen bg-[#030308] flex flex-col items-center justify-center text-white font-sans selection:bg-[#38bdf8]">
+      <div className="relative flex items-center justify-center mb-6">
+        <div className="w-12 h-12 rounded-full border-2 border-cyan-400/30 border-t-cyan-400 animate-spin shadow-[0_0_25px_rgba(56,189,248,0.4)]" />
+        <div className="absolute w-2.5 h-2.5 rounded-full bg-cyan-300 animate-ping" />
+      </div>
+      <div className="text-center space-y-1.5 px-4">
+        <h2 className="text-base font-semibold tracking-tight text-white font-display">
+          Authenticating Research Session
+        </h2>
+        <p className="text-xs text-slate-400 font-mono">
+          Finalizing credentials and loading dashboard...
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function App({ isGuestMode = false }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCallback, setIsCallback] = useState(() => !isGuestMode && isSSOCallback());
 
   // Handle OAuth redirect from Clerk (Google, GitHub, etc.)
-  // Clerk sends the user back to /#/sso-callback — this component
-  // completes the token exchange and then redirects to the root.
-  if (!isGuestMode && isSSOCallback()) {
-    return (
-      <AuthenticateWithRedirectCallback
-        afterSignInUrl={window.location.origin}
-        afterSignUpUrl={window.location.origin}
-      />
-    );
+  // Automatically completes token exchange and cleanly enters the dashboard without any manual page reload
+  if (!isGuestMode && isCallback) {
+    return <SSOCallbackHandler onComplete={() => setIsCallback(false)} />;
   }
 
   return (
