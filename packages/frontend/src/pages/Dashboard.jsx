@@ -78,11 +78,17 @@ const initialPapers = [
 ];
 
 export const Dashboard = ({
+  user = null,
   userEmail = 'researcher@lab.org',
   onLogout,
   onOpenSettings,
   getToken
 }) => {
+  const displayName = user?.fullName || user?.username || (userEmail ? userEmail.split('@')[0] : 'Researcher');
+  const firstName = user?.firstName || displayName.split(' ')[0] || 'Researcher';
+  const avatarUrl = user?.imageUrl || null;
+  const initial = (firstName || displayName || 'R').charAt(0).toUpperCase();
+
   const [papers, setPapers] = useState(initialPapers);
   const [activePaper, setActivePaper] = useState(null); // null = Corpus Overview, object = Deep Analysis Workstation
   const [searchQuery, setSearchQuery] = useState('');
@@ -298,6 +304,7 @@ export const Dashboard = ({
   if (isProfileView) {
     return (
       <UserProfile
+        user={user}
         userEmail={userEmail}
         initialTab={profileInitialTab}
         onBack={() => setIsProfileView(false)}
@@ -475,18 +482,22 @@ export const Dashboard = ({
             <button
               type="button"
               onClick={() => openUserProfile('identity')}
-              className="flex items-center gap-2 pl-2 border-l border-outline-variant/30 hover:bg-white/[0.04] p-1.5 rounded-xl transition-all cursor-pointer text-left"
+              className="flex items-center gap-2.5 pl-2 border-l border-outline-variant/30 hover:bg-white/[0.04] p-1.5 rounded-xl transition-all cursor-pointer text-left group"
               title="Open User Profile & Account Settings"
             >
-              <div className="w-8 h-8 rounded-full bg-secondary-container text-secondary flex items-center justify-center font-headline-sm text-xs font-semibold ring-1 ring-secondary/40 shadow-inner">
-                {userEmail?.charAt(0).toUpperCase() || 'R'}
+              <div className="w-8 h-8 rounded-full bg-secondary-container text-secondary flex items-center justify-center font-headline-sm text-xs font-semibold ring-1 ring-secondary/40 shadow-inner overflow-hidden shrink-0">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                ) : (
+                  <span>{initial}</span>
+                )}
               </div>
               <div className="hidden 2xl:flex flex-col text-left">
-                <span className="text-label-sm font-label-sm text-on-surface leading-tight text-xs truncate max-w-[140px]">
-                  {userEmail}
+                <span className="text-label-sm font-label-sm text-on-surface leading-tight text-xs font-medium truncate max-w-[150px] group-hover:text-primary transition-colors">
+                  {displayName}
                 </span>
-                <span className="text-[11px] font-label-sm text-primary tracking-wide">
-                  Lead Researcher
+                <span className="text-[11px] font-label-sm text-on-surface-variant truncate max-w-[150px]">
+                  {userEmail}
                 </span>
               </div>
             </button>
@@ -526,7 +537,7 @@ export const Dashboard = ({
                 <h1 className="text-headline-lg font-headline-lg text-on-surface tracking-tight text-2xl sm:text-3xl font-semibold">
                   Welcome back,{' '}
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-primary-fixed to-secondary">
-                    Researcher
+                    {firstName}
                   </span>
                 </h1>
 

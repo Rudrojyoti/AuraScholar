@@ -82,14 +82,23 @@ export const SpaceAuthPage: React.FC<SpaceAuthPageProps> = ({
   };
 
   const handleSocialAuth = async (provider: 'google' | 'github') => {
-    if (!signInLoaded) return;
+    if (!signInLoaded || !signUpLoaded) return;
     setIsLoading(true);
     try {
-      await signIn.authenticateWithRedirect({
-        strategy: provider === 'google' ? 'oauth_google' : 'oauth_github',
-        redirectUrl: `${window.location.origin}?clerk_callback=1`,
-        redirectUrlComplete: window.location.origin,
-      });
+      const strategy = provider === 'google' ? 'oauth_google' : 'oauth_github';
+      if (mode === 'signup') {
+        await signUp.authenticateWithRedirect({
+          strategy,
+          redirectUrl: `${window.location.origin}?clerk_callback=1`,
+          redirectUrlComplete: window.location.origin,
+        });
+      } else {
+        await signIn.authenticateWithRedirect({
+          strategy,
+          redirectUrl: `${window.location.origin}?clerk_callback=1`,
+          redirectUrlComplete: window.location.origin,
+        });
+      }
     } catch (err: any) {
       const msg = err?.errors?.[0]?.message || 'OAuth sign-in failed. Please try again.';
       setErrorMsg(msg);

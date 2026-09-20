@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function UserProfile({
+  user = null,
   userEmail = 'researcher@lab.org',
   onBack,
   onLogout,
@@ -10,11 +11,15 @@ export default function UserProfile({
   // Load persisted settings or fallback to defaults
   const [activeTab, setActiveTab] = useState(initialTab);
   
-  // Profile info
-  const [displayName, setDisplayName] = useState('Dr. Eleanor Vance');
-  const [email, setEmail] = useState(userEmail || 'researcher@lab.org');
-  const [affiliation, setAffiliation] = useState('MIT Department of Physics & Astrophysics');
-  const [avatarUrl, setAvatarUrl] = useState(null);
+  // Profile info from authenticated user or fallback
+  const resolvedDisplayName = user?.fullName || user?.username || (userEmail && !userEmail.includes('researcher@') ? userEmail.split('@')[0] : 'Lead Researcher');
+  const resolvedEmail = user?.primaryEmailAddress?.emailAddress || userEmail || 'researcher@lab.org';
+  const resolvedAvatar = user?.imageUrl || null;
+
+  const [displayName, setDisplayName] = useState(resolvedDisplayName);
+  const [email, setEmail] = useState(resolvedEmail);
+  const [affiliation, setAffiliation] = useState('Astrophysics & Machine Learning Research');
+  const [avatarUrl, setAvatarUrl] = useState(resolvedAvatar);
   const [researchFields, setResearchFields] = useState([
     'Quantum Gravity',
     'Transformer Architectures',
@@ -36,10 +41,16 @@ export default function UserProfile({
   const [recoveryCodes, setRecoveryCodes] = useState([
     '4A89-9B21', '71FC-8802', 'DD32-1109', '6E55-2019', 'B344-9981', '11AF-5432'
   ]);
+
+  const hasGoogle = user?.externalAccounts?.some(acc => acc.provider?.includes('google')) || !!user?.emailAddresses?.some(e => e.emailAddress?.endsWith('@gmail.com'));
+  const hasGithub = user?.externalAccounts?.some(acc => acc.provider?.includes('github'));
+  const googleEmail = user?.externalAccounts?.find(acc => acc.provider?.includes('google'))?.emailAddress || resolvedEmail;
+  const githubHandle = user?.externalAccounts?.find(acc => acc.provider?.includes('github'))?.username || (user?.username ? `@${user.username}` : '@researcher');
+
   const [connectedAccounts, setConnectedAccounts] = useState({
-    google: { linked: true, email: 'eleanor.vance@gmail.com' },
-    github: { linked: true, handle: '@eleanor-physics' },
-    orcid: { linked: true, id: '0000-0002-1825-0097' }
+    google: { linked: hasGoogle, email: googleEmail },
+    github: { linked: hasGithub, handle: githubHandle },
+    orcid: { linked: false, id: '0000-0002-1825-0097' }
   });
   const [activeSessions, setActiveSessions] = useState([
     {

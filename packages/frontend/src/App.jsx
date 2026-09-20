@@ -35,6 +35,7 @@ function ClerkAppContent({ onOpenSettings }) {
 
       <SignedIn>
         <Dashboard 
+          user={user}
           userEmail={user?.primaryEmailAddress?.emailAddress}
           onLogout={handleLogout}
           onOpenSettings={onOpenSettings}
