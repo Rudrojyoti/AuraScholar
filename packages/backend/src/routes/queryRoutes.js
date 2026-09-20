@@ -1,23 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const queryController = require('../controllers/queryController');
-const config = require('../config');
-const { clerkMiddleware } = require('@clerk/express');
+const { optionalAuth } = require('../middleware/authMiddleware');
 
-// Optional Clerk middleware
-const optionalAuth = (req, res, next) => {
-  if (config.clerk && config.clerk.secretKey) {
-    try {
-      return clerkMiddleware()(req, res, () => {
-        next();
-      });
-    } catch (e) {
-      return next();
-    }
-  }
-  next();
-};
-
+// optionalAuth: validates token when present, passes through for guest users
 router.post('/', optionalAuth, queryController.askQuestion);
 
 module.exports = router;
