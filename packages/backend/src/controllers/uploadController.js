@@ -59,6 +59,10 @@ const uploadPdf = async (req, res) => {
         paperId: paper._id,
         summary: initialData.summary,
         methodology: initialData.methodology,
+        contributions: initialData.contributions,
+        limitations: initialData.limitations,
+        futureWork: initialData.futureWork,
+        numPages: chunks.length,
         message: `Successfully processed ${chunks.length} text chunks.`
       }
     });

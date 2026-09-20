@@ -182,33 +182,54 @@ const extractHeuristicSummary = (chunks) => {
   const summaryText = abstractMatch ? abstractMatch[1].trim() : combined.slice(0, 450).trim() + '...';
   return {
     summary: summaryText.slice(0, 600),
-    methodology: "Empirical methodology analyzing research data, study evaluations, and qualitative metrics."
+    methodology: "Empirical methodology analyzing research data, study evaluations, and qualitative metrics.",
+    contributions: "Key findings and contributions extracted from the paper's text.",
+    limitations: "Standard experimental constraints as described in the paper.",
+    futureWork: "Future research directions as outlined by the authors."
   };
 };
 
 /**
- * Generate quick summary and methodology from sample text
+ * Generate full paper analysis: summary, methodology, contributions, limitations, futureWork
  * @param {string[]} chunks - Array of text chunks
- * @returns {Promise<{summary: string, methodology: string}>}
+ * @returns {Promise<{summary: string, methodology: string, contributions: string, limitations: string, futureWork: string}>}
  */
 const generateQuickSummary = async (chunks) => {
-  const sampleText = chunks.slice(0, 3).join('\n\n');
-  const prompt = `Analyze the provided abstract/introduction of the research paper and provide a JSON response with two keys: "summary" (a 2-3 sentence overview) and "methodology" (a 1-2 sentence description of their approach). Here is the text:\n\n${sampleText}`;
+  const sampleText = chunks.slice(0, 5).join('\n\n');
+  const prompt = `Analyze this research paper excerpt and return a JSON object with exactly these five keys:
+- "summary": A 2-3 sentence high-level overview of what the paper is about and its main findings.
+- "methodology": A 1-2 sentence description of the research approach, methods, or architecture used.
+- "contributions": A numbered list (as a string) of 2-3 key contributions or breakthroughs from the paper.
+- "limitations": 1-2 sentences describing the main limitations or constraints of the approach.
+- "futureWork": 1-2 sentences on directions for future work as mentioned in the paper.
+
+Return ONLY valid JSON. No markdown, no explanation.
+
+Paper text:
+${sampleText}`;
 
   // 1. Try Qwen 3.8 first
   try {
-    console.log(`[LLM] Requesting summary from Qwen 3.8 (${config.qwen.model})...`);
+    console.log(`[LLM] Requesting full analysis from Qwen 3.8 (${config.qwen.model})...`);
     const qwenResponse = await callQwenChat([
       {
         role: 'system',
-        content: 'You are an AI research assistant. Provide your answer strictly as a valid JSON object with keys "summary" and "methodology". Do not add introductory or closing remarks.'
+        content: 'You are an AI research assistant. Return strictly valid JSON with keys: summary, methodology, contributions, limitations, futureWork. No markdown fences, no extra text.'
       },
       {
         role: 'user',
         content: prompt
       }
     ]);
-    return parseJsonSafe(qwenResponse);
+    const parsed = parseJsonSafe(qwenResponse);
+    // Ensure all fields exist
+    return {
+      summary: parsed.summary || '',
+      methodology: parsed.methodology || '',
+      contributions: parsed.contributions || '',
+      limitations: parsed.limitations || '',
+      futureWork: parsed.futureWork || parsed.future_work || ''
+    };
   } catch (qwenError) {
     console.warn(`[LLM] Qwen 3.8 call failed: ${qwenError.message}. Falling back to Gemini 2.5 Flash...`);
   }
@@ -224,7 +245,14 @@ const generateQuickSummary = async (chunks) => {
       }
     });
 
-    return JSON.parse(response.text);
+    const parsed = JSON.parse(response.text);
+    return {
+      summary: parsed.summary || '',
+      methodology: parsed.methodology || '',
+      contributions: parsed.contributions || '',
+      limitations: parsed.limitations || '',
+      futureWork: parsed.futureWork || parsed.future_work || ''
+    };
   } catch (error) {
     console.warn('[LLM] Gemini summary generation unavailable, using extractive summary:', error.message);
     return extractHeuristicSummary(chunks);

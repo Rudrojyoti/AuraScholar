@@ -149,6 +149,10 @@ export const Dashboard = ({
 
         const data = await res.json();
 
+        if (data.status !== 'success') {
+          throw new Error(data.message || 'Backend returned an error during processing.');
+        }
+
         const newPaper = {
           id: data?.data?.paperId || Date.now(),
           backendPaperId: data?.data?.paperId,
@@ -166,9 +170,9 @@ export const Dashboard = ({
           sectionExcerpt: "Key mathematical derivation extracted from the document.",
           summary: data?.data?.summary || 'Summary generated from the uploaded document.',
           methodology: data?.data?.methodology || 'Methodology extracted from the document.',
-          contributions: 'Extracted key mathematical invariants and automated citation mapping.',
-          limitations: 'Subject to experimental boundaries defined within empirical appendix.',
-          futureWork: 'Cross-corpus correlation with upcoming pre-print publications.',
+          contributions: data?.data?.contributions || 'Key contributions extracted from the paper.',
+          limitations: data?.data?.limitations || 'Limitations as described in the paper.',
+          futureWork: data?.data?.futureWork || 'Future work directions from the paper.',
           qaHistory: []
         };
 
@@ -176,7 +180,7 @@ export const Dashboard = ({
         setActivePaper(newPaper);
       } catch (err) {
         console.warn('Backend unavailable, generating verified local synthesis:', err);
-        // Fallback smooth standalone mode
+        // Fallback standalone mode — shown when backend is not running
         const standalonePaper = {
           id: Date.now(),
           name: paperName,
@@ -191,11 +195,11 @@ export const Dashboard = ({
           equationTag: "Eq. 1",
           sectionTitle: "1.0 Theoretical Foundations",
           sectionExcerpt: "Key equations and derivations extracted from the document.",
-          summary: `Summary for ${paperName}. Covers methodology, mathematical content, and experimental results.`,
-          methodology: "Text extraction and analysis performed locally. Connect to backend for full AI-powered analysis.",
-          contributions: "1. Key findings extracted from the paper.\n2. Citation and parameter identification.",
-          limitations: "Standard experimental constraints as noted in section 5.",
-          futureWork: "Connect to backend to enable full AI-powered future work extraction.",
+          summary: `⚠️ Backend offline. Could not generate AI summary for "${paperName}". Please start the backend server at localhost:3001 and re-upload.`,
+          methodology: "⚠️ Backend offline. Start the backend server to enable full AI-powered methodology extraction.",
+          contributions: "⚠️ Backend offline. AI-powered contribution analysis requires the backend server.",
+          limitations: "⚠️ Backend offline. Limitation analysis is unavailable without the backend server.",
+          futureWork: "⚠️ Backend offline. Future work extraction requires AI analysis via the backend server.",
           qaHistory: []
         };
         setPapers(prev => [standalonePaper, ...prev]);
