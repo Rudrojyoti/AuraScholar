@@ -492,11 +492,11 @@ export const Dashboard = ({
                   <span>{initial}</span>
                 )}
               </div>
-              <div className="hidden 2xl:flex flex-col text-left">
-                <span className="text-label-sm font-label-sm text-on-surface leading-tight text-xs font-medium truncate max-w-[150px] group-hover:text-primary transition-colors">
+              <div className="hidden md:flex flex-col text-left">
+                <span className="text-label-sm font-label-sm text-on-surface leading-tight text-xs font-semibold truncate max-w-[130px] lg:max-w-[170px] group-hover:text-primary transition-colors">
                   {displayName}
                 </span>
-                <span className="text-[11px] font-label-sm text-on-surface-variant truncate max-w-[150px]">
+                <span className="text-[10px] font-label-sm text-on-surface-variant truncate max-w-[130px] lg:max-w-[170px]">
                   {userEmail}
                 </span>
               </div>

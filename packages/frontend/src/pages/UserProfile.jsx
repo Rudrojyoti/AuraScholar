@@ -1,13 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useUser } from '@clerk/clerk-react';
 
 export default function UserProfile({
-  user = null,
-  userEmail = 'researcher@lab.org',
+  user: userProp = null,
+  userEmail: userEmailProp = 'researcher@lab.org',
   onBack,
   onLogout,
   initialTab = 'identity'
 }) {
+  let clerkUser = null;
+  try {
+    const clerk = useUser();
+    clerkUser = clerk?.user;
+  } catch (e) {
+    // Graceful fallback if outside ClerkProvider
+  }
+
+  const user = clerkUser || userProp;
+  const userEmail = user?.primaryEmailAddress?.emailAddress || userEmailProp;
+
   // Load persisted settings or fallback to defaults
   const [activeTab, setActiveTab] = useState(initialTab);
   
@@ -18,7 +30,7 @@ export default function UserProfile({
 
   const [displayName, setDisplayName] = useState(resolvedDisplayName);
   const [email, setEmail] = useState(resolvedEmail);
-  const [affiliation, setAffiliation] = useState('Astrophysics & Machine Learning Research');
+  const [affiliation, setAffiliation] = useState('Machine Learning & AI Research');
   const [avatarUrl, setAvatarUrl] = useState(resolvedAvatar);
   const [researchFields, setResearchFields] = useState([
     'Quantum Gravity',
@@ -107,14 +119,47 @@ export default function UserProfile({
 
   const fileInputRef = useRef(null);
 
-  // Load from localStorage on mount
+  // Sync with authenticated Clerk user whenever user object is ready
+  useEffect(() => {
+    if (user) {
+      const realName = user.fullName || user.username || (userEmail && !userEmail.includes('researcher@') ? userEmail.split('@')[0] : '');
+      if (realName) {
+        setDisplayName(prev => {
+          if (!prev || prev === 'Dr. Eleanor Vance' || prev === 'Lead Researcher') {
+            return realName;
+          }
+          return prev;
+        });
+      }
+      if (user.primaryEmailAddress?.emailAddress) {
+        setEmail(user.primaryEmailAddress.emailAddress);
+      }
+      if (user.imageUrl) {
+        setAvatarUrl(user.imageUrl);
+      }
+    }
+  }, [user, userEmail]);
+
+  // Load from localStorage on mount (with legacy placeholder sanitization)
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('aurascholar_user_profile_data');
+      const storageKey = `aurascholar_profile_${user?.id || userEmail || 'default'}`;
+      let saved = localStorage.getItem(storageKey);
+      if (!saved) {
+        saved = localStorage.getItem('aurascholar_user_profile_data');
+      }
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.displayName) setDisplayName(parsed.displayName);
-        if (parsed.affiliation) setAffiliation(parsed.affiliation);
+        // Discard stale hardcoded dummy 'Dr. Eleanor Vance'
+        if (parsed.displayName && parsed.displayName !== 'Dr. Eleanor Vance') {
+          setDisplayName(parsed.displayName);
+        } else if (user?.fullName || user?.username) {
+          setDisplayName(user.fullName || user.username);
+        }
+
+        if (parsed.affiliation && parsed.affiliation !== 'MIT Department of Physics & Astrophysics') {
+          setAffiliation(parsed.affiliation);
+        }
         if (parsed.researchFields) setResearchFields(parsed.researchFields);
         if (parsed.leadModel) setLeadModel(parsed.leadModel);
         if (parsed.geminiKey) setGeminiKey(parsed.geminiKey);
@@ -130,7 +175,7 @@ export default function UserProfile({
     } catch (e) {
       console.warn('Failed to load profile data from storage', e);
     }
-  }, []);
+  }, [user, userEmail]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -140,7 +185,10 @@ export default function UserProfile({
   };
 
   const getInitials = (name) => {
-    if (!name) return 'EV';
+    if (!name || name === 'Dr. Eleanor Vance') {
+      if (user?.firstName) return user.firstName.charAt(0).toUpperCase();
+      return 'U';
+    }
     const parts = name.replace(/^(Dr\.|Prof\.|Mr\.|Ms\.|Mrs\.)\s+/i, '').trim().split(' ');
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
@@ -218,6 +266,8 @@ export default function UserProfile({
       avatarUrl
     };
     try {
+      const storageKey = `aurascholar_profile_${user?.id || userEmail || 'default'}`;
+      localStorage.setItem(storageKey, JSON.stringify(profileData));
       localStorage.setItem('aurascholar_user_profile_data', JSON.stringify(profileData));
     } catch (e) {
       console.error(e);
@@ -772,7 +822,7 @@ export default function UserProfile({
                   <div className="p-4 rounded-xl bg-black/20 border border-white/[0.08] flex items-center justify-between">
                     <div>
                       <div className="font-display font-semibold text-white text-sm">Academic Institution License</div>
-                      <div className="text-xs text-slate-400 mt-0.5">MIT Physics Consortium &bull; Unlimited paper parsing, LaTeX theorems, and cross-model consensus.</div>
+                      <div className="text-xs text-slate-400 mt-0.5">Academic Research Observatory &bull; Unlimited paper parsing, LaTeX theorems, and cross-model consensus.</div>
                     </div>
                     <span className="px-2.5 py-1 rounded-md text-[11px] font-mono bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-medium">
                       ACTIVE
