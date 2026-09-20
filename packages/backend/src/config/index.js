@@ -25,5 +25,10 @@ module.exports = {
   uploadthing: {
     secret: process.env.UPLOADTHING_SECRET,
     appId: process.env.UPLOADTHING_APP_ID
+  },
+  supabase: {
+    url: process.env.SUPABASE_URL,
+    serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    anonKey: process.env.SUPABASE_ANON_KEY
   }
 };

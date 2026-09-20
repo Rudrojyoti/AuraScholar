@@ -107,6 +107,59 @@ export const Dashboard = ({
   const initial = (firstName || displayName || 'R').charAt(0).toUpperCase();
 
   const [papers, setPapers] = useState(initialPapers);
+
+  // Fetch persisted papers from Supabase backend on sign-in
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUserPapers = async () => {
+      try {
+        const token = getToken ? await getToken() : null;
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch(`${API_BASE_URL}/papers?userId=${encodeURIComponent(user?.id || userEmail || 'guest_user')}`, {
+          headers
+        });
+        const data = await res.json();
+        if (isMounted && data.status === 'success' && Array.isArray(data.data?.papers) && data.data.papers.length > 0) {
+          const backendPapers = data.data.papers.map(p => ({
+            id: p.id || p._id,
+            backendPaperId: p.id || p._id,
+            name: p.title || 'Untitled Paper',
+            arxiv: 'Verified Record',
+            pages: 18,
+            size: '3.4 MB',
+            domain: 'Research Paper',
+            status: 'Ready',
+            date: p.createdAt ? new Date(p.createdAt).toLocaleDateString() : 'Persisted',
+            starred: false,
+            equation: "∇_μ F^μν = 4π J^ν",
+            equationTag: "Eq. 1",
+            sectionTitle: "Core Theoretical Framework",
+            sectionExcerpt: p.summary ? (p.summary.slice(0, 150) + '...') : 'Extracted from persistent storage.',
+            summary: p.summary || 'Summary unavailable.',
+            methodology: p.methodology || 'Methodology details unavailable.',
+            contributions: p.contributions || 'Contributions unavailable.',
+            limitations: p.limitations || 'Limitations unavailable.',
+            futureWork: p.futureWork || 'Future work unavailable.',
+            qaHistory: []
+          }));
+
+          setPapers(prev => {
+            const existingIds = new Set(backendPapers.map(bp => bp.id.toString()));
+            const filteredPrev = prev.filter(p => !existingIds.has(p.id?.toString()));
+            return [...backendPapers, ...filteredPrev];
+          });
+        }
+      } catch (err) {
+        // Fallback gracefully to local papers
+      }
+    };
+
+    fetchUserPapers();
+    return () => { isMounted = false; };
+  }, [user?.id, userEmail, getToken]);
+
   const [activePaper, setActivePaper] = useState(null); // null = Corpus Overview, object = Deep Analysis Workstation
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const PaperChunk = require('../models/PaperChunk');
 const llmService = require('./llmService');
+const { supabase, isConfigured: isSupabaseConfigured } = require('./supabaseClient');
 
 // In-memory fallback chunk storage
 const inMemoryChunks = [];
@@ -27,32 +28,62 @@ const isMongoConnected = () => {
 };
 
 /**
- * Stores text chunks with their vector embeddings
+ * Stores text chunks with their vector embeddings in Supabase (or MongoDB / In-Memory)
  * @param {string} paperId - The ID of the Paper
  * @param {string[]} chunks - Array of text chunks
  */
 const storeChunks = async (paperId, chunks) => {
+  const pidStr = paperId.toString();
+
   // Generate embeddings for all chunks via batching and local fallback
   const embeddings = await llmService.generateBatchEmbeddings(chunks);
 
-  const paperChunks = chunks.map((chunkText, i) => ({
-    paperId: paperId.toString(),
+  // Always keep in-memory cache for ultra-low latency retrieval
+  const localChunks = chunks.map((chunkText, i) => ({
+    paperId: pidStr,
     chunkIndex: i,
     text: chunkText,
     embedding: embeddings[i] || []
   }));
+  inMemoryChunks.push(...localChunks);
 
+  // 1. Supabase Persistent Storage
+  if (isSupabaseConfigured()) {
+    try {
+      const supabaseChunks = chunks.map((chunkText, i) => ({
+        paper_id: pidStr,
+        chunk_index: i,
+        text: chunkText,
+        embedding: embeddings[i] && embeddings[i].length > 0 ? embeddings[i] : null
+      }));
+
+      // Batch insert chunks in chunks of 50 to avoid request size limits
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < supabaseChunks.length; i += BATCH_SIZE) {
+        const batch = supabaseChunks.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from('paper_chunks').insert(batch);
+        if (error) {
+          console.warn(`⚠️ Supabase chunk insert batch error (items ${i}-${i + batch.length}):`, error.message);
+        }
+      }
+      return;
+    } catch (err) {
+      console.warn('⚠️ Supabase storeChunks error, saved to in-memory store:', err.message);
+    }
+  }
+
+  // 2. MongoDB Atlas Storage
   if (isMongoConnected()) {
-    // Bulk insert into MongoDB
-    await PaperChunk.insertMany(paperChunks);
-  } else {
-    // Store in-memory
-    inMemoryChunks.push(...paperChunks);
+    try {
+      await PaperChunk.insertMany(localChunks);
+    } catch (err) {
+      console.warn('⚠️ MongoDB insertMany error:', err.message);
+    }
   }
 };
 
 /**
- * Queries for chunks similar to the question
+ * Queries for chunks similar to the question using Supabase pgvector or local cosine similarity
  * @param {string} paperId - The ID of the Paper
  * @param {string} question - The user's question
  * @param {number} topK - Number of top chunks to return
@@ -60,16 +91,53 @@ const storeChunks = async (paperId, chunks) => {
  */
 const findSimilarChunks = async (paperId, question, topK = 5) => {
   const pidStr = paperId.toString();
-  const relevantChunks = inMemoryChunks.filter(c => c.paperId === pidStr);
 
-  // Detect dimension of the stored chunk embeddings (e.g. 3072 from Gemini or 384 from local)
-  const sampleDim = relevantChunks[0]?.embedding?.length || null;
+  // 1. Check local chunks first for dimension detection
+  let relevantChunks = inMemoryChunks.filter(c => c.paperId === pidStr);
+  const sampleDim = relevantChunks[0]?.embedding?.length || 384;
 
-  // 1. Embed the question matching the paper's vector dimension
+  // Generate embedding for the question
   const questionEmbedding = await llmService.generateEmbedding(question, sampleDim);
 
+  // 2. Supabase Retrieval
+  if (isSupabaseConfigured()) {
+    try {
+      // First attempt: call pgvector match_paper_chunks RPC if available
+      const { data: rpcData, error: rpcError } = await supabase.rpc('match_paper_chunks', {
+        query_embedding: questionEmbedding,
+        filter_paper_id: pidStr,
+        match_count: topK
+      });
+
+      if (!rpcError && rpcData && rpcData.length > 0) {
+        return rpcData.map(item => item.text);
+      }
+
+      // Second attempt: fetch chunks from Supabase table if not found locally
+      if (relevantChunks.length === 0) {
+        const { data: dbChunks, error: dbError } = await supabase
+          .from('paper_chunks')
+          .select('text, chunk_index, embedding')
+          .eq('paper_id', pidStr);
+
+        if (!dbError && dbChunks && dbChunks.length > 0) {
+          relevantChunks = dbChunks.map(c => ({
+            paperId: pidStr,
+            chunkIndex: c.chunk_index,
+            text: c.text,
+            embedding: typeof c.embedding === 'string' ? JSON.parse(c.embedding) : (c.embedding || [])
+          }));
+          // Cache in memory for subsequent questions
+          inMemoryChunks.push(...relevantChunks);
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ Supabase vector query warning:', err.message);
+    }
+  }
+
+  // 3. MongoDB Atlas vector search fallback
   if (isMongoConnected()) {
-    // Perform vector search in Atlas
     try {
       const results = await PaperChunk.aggregate([
         {
@@ -79,9 +147,7 @@ const findSimilarChunks = async (paperId, question, topK = 5) => {
             "queryVector": questionEmbedding,
             "numCandidates": 50,
             "limit": topK,
-            "filter": {
-              "paperId": paperId
-            }
+            "filter": { "paperId": pidStr }
           }
         },
         {
@@ -95,11 +161,11 @@ const findSimilarChunks = async (paperId, question, topK = 5) => {
         return results.map(doc => doc.text);
       }
     } catch (err) {
-      console.warn('[VectorService] MongoDB $vectorSearch failed, falling back to in-memory cosine search:', err.message);
+      // Silently continue to in-memory scoring
     }
   }
 
-  // In-memory hybrid search (Cosine Vector Similarity + Keyword Term Matching)
+  // 4. In-Memory Hybrid Search (Cosine Vector Similarity + Keyword Term Matching)
   const qTerms = (question.toLowerCase().match(/\b[a-z0-9]{3,}\b/g) || []);
 
   const scored = relevantChunks.map(chunk => {
@@ -108,7 +174,6 @@ const findSimilarChunks = async (paperId, question, topK = 5) => {
       vecScore = cosineSimilarity(questionEmbedding, chunk.embedding);
     }
 
-    // Keyword matching score
     let matchCount = 0;
     const chunkLower = chunk.text.toLowerCase();
     for (const term of qTerms) {
