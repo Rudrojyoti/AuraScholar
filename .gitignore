@@ -24,11 +24,21 @@ packages/*/package-lock.json
 
 # Sensitive Environment Variables
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+*.env
+**/.env
+**/.env.*
+**/*.env
+!*.env.example
+!**/*.env.example
 *.pem
+*.key
+*.cert
+*.cert.pem
+*.key.pem
+
+# Local CLI & Cloud Tooling
+.sf/
 
 # Editor directories and files
 .vscode/*
