@@ -30,18 +30,15 @@ create table if not exists public.paper_chunks (
   paper_id text references public.papers(id) on delete cascade not null,
   chunk_index integer not null,
   text text not null,
-  embedding vector(384) -- Default 384 dim (all-MiniLM-L6 / deterministic term vectors)
+  embedding vector -- Supports any embedding model (Gemini 3072 / 768 / 384)
 );
 
 -- Index for fetching chunks belonging to a paper
 create index if not exists idx_paper_chunks_paper_id on public.paper_chunks (paper_id);
 
--- Optional HNSW index for ultra-fast approximate nearest neighbor vector search
--- create index if not exists idx_paper_chunks_embedding on public.paper_chunks using hnsw (embedding vector_cosine_ops);
-
 -- 4. Vector Match RPC Function (Used by backend for RAG retrieval)
 create or replace function match_paper_chunks (
-  query_embedding vector(384),
+  query_embedding vector,
   filter_paper_id text,
   match_count int default 5
 ) returns table (
