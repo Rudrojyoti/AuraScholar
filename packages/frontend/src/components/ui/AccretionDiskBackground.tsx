@@ -157,6 +157,7 @@ void main() {
 `;
 
     function cs(type: number, src: string) {
+      if (!gl) return null;
       const s = gl.createShader(type);
       if (!s) return null;
       gl.shaderSource(s, src);
