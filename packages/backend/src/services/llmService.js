@@ -36,6 +36,45 @@ const callQwenChat = async (messages, options = {}) => {
 };
 
 /**
+ * Call Gemini Flash via direct Google Generative Language REST API (High speed, ~1.2s)
+ * @param {string} prompt
+ * @param {string} systemInstruction
+ * @param {object} options
+ * @returns {Promise<string>}
+ */
+const callGeminiChat = async (prompt, systemInstruction = '', options = {}) => {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.gemini.model}:generateContent?key=${config.gemini.apiKey}`;
+  const body = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: options.temperature ?? 0.2
+    }
+  };
+  if (systemInstruction) {
+    body.systemInstruction = { parts: [{ text: systemInstruction }] };
+  }
+  if (options.responseMimeType) {
+    body.generationConfig.responseMimeType = options.responseMimeType;
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini API error (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('Empty response received from Gemini');
+  return text.trim();
+};
+
+/**
  * Dimension for local fallback embeddings
  */
 const LOCAL_EMBEDDING_DIM = 384;
@@ -148,11 +187,21 @@ const generateEmbedding = async (text, targetDim = null) => {
 
   if (config.gemini.apiKey) {
     try {
-      const response = await ai.models.embedContent({
-        model: config.gemini.embeddingModel,
-        contents: text
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.gemini.embeddingModel}:embedContent?key=${config.gemini.apiKey}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: `models/${config.gemini.embeddingModel}`,
+          content: { parts: [{ text }] }
+        })
       });
-      return response.embeddings[0].values;
+      if (res.ok) {
+        const data = await res.json();
+        if (data.embedding?.values) {
+          return data.embedding.values;
+        }
+      }
     } catch (error) {
       console.warn(`[Embedding] Gemini single embedding failed (${error.message}). Using local fallback.`);
     }
@@ -225,62 +274,64 @@ Return ONLY valid JSON. No markdown code blocks, no explanation.
 Paper text:
 ${sampleText}`;
 
-  // 1. Try Qwen 3.8 first
-  try {
-    console.log(`[LLM] Requesting full analysis from Qwen 3.8 (${config.qwen.model})...`);
-    const qwenResponse = await callQwenChat([
-      {
-        role: 'system',
-        content: 'You are an expert scientific intelligence system. Return strictly a valid JSON object with keys: summary, methodology, contributions, limitations, futureWork, equation, equationTag, sectionTitle, sectionExcerpt. No markdown wrappers, no commentary.'
-      },
-      {
-        role: 'user',
-        content: prompt
-      }
-    ]);
-    const parsed = parseJsonSafe(qwenResponse);
-    return {
-      summary: parsed.summary || '',
-      methodology: parsed.methodology || '',
-      contributions: parsed.contributions || '',
-      limitations: parsed.limitations || '',
-      futureWork: parsed.futureWork || parsed.future_work || '',
-      equation: parsed.equation || '∇_μ F^μν = 4π J^ν',
-      equationTag: parsed.equationTag || parsed.equation_tag || 'Eq. 1',
-      sectionTitle: parsed.sectionTitle || parsed.section_title || 'Core Theoretical Framework',
-      sectionExcerpt: parsed.sectionExcerpt || parsed.section_excerpt || 'Key mathematical derivation extracted from the document.'
-    };
-  } catch (qwenError) {
-    console.warn(`[LLM] Qwen 3.8 call failed: ${qwenError.message}. Falling back to Gemini 2.5 Flash...`);
+  // 1. Fast Path: Try Gemini (~1.2s)
+  if (config.gemini.apiKey) {
+    try {
+      console.log(`[LLM] Fast path: Generating synthesis with Gemini (${config.gemini.model})...`);
+      const geminiResponse = await callGeminiChat(
+        prompt,
+        'You are an expert scientific intelligence system. Return strictly a valid JSON object with keys: summary, methodology, contributions, limitations, futureWork, equation, equationTag, sectionTitle, sectionExcerpt. No markdown wrappers, no commentary.',
+        { responseMimeType: "application/json", temperature: 0.2 }
+      );
+      const parsed = parseJsonSafe(geminiResponse);
+      return {
+        summary: parsed.summary || '',
+        methodology: parsed.methodology || '',
+        contributions: parsed.contributions || '',
+        limitations: parsed.limitations || '',
+        futureWork: parsed.futureWork || parsed.future_work || '',
+        equation: parsed.equation || '∇_μ F^μν = 4π J^ν',
+        equationTag: parsed.equationTag || parsed.equation_tag || 'Eq. 1',
+        sectionTitle: parsed.sectionTitle || parsed.section_title || 'Core Theoretical Framework',
+        sectionExcerpt: parsed.sectionExcerpt || parsed.section_excerpt || 'Key mathematical derivation extracted from the document.'
+      };
+    } catch (geminiError) {
+      console.warn(`[LLM] Gemini summary failed (${geminiError.message}). Falling back to Qwen 3.8...`);
+    }
   }
 
-  // 2. Fallback to Gemini 2.5 Flash
-  try {
-    const response = await ai.models.generateContent({
-      model: config.gemini.model,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        temperature: 0.2
-      }
-    });
-
-    const parsed = JSON.parse(response.text);
-    return {
-      summary: parsed.summary || '',
-      methodology: parsed.methodology || '',
-      contributions: parsed.contributions || '',
-      limitations: parsed.limitations || '',
-      futureWork: parsed.futureWork || parsed.future_work || '',
-      equation: parsed.equation || '∇_μ F^μν = 4π J^ν',
-      equationTag: parsed.equationTag || parsed.equation_tag || 'Eq. 1',
-      sectionTitle: parsed.sectionTitle || parsed.section_title || 'Core Theoretical Framework',
-      sectionExcerpt: parsed.sectionExcerpt || parsed.section_excerpt || 'Key mathematical derivation extracted from the document.'
-    };
-  } catch (error) {
-    console.warn('[LLM] Gemini summary generation unavailable, using extractive summary:', error.message);
-    return extractHeuristicSummary(chunks);
+  // 2. Secondary Path: Fallback to Qwen 3.8
+  if (config.qwen.apiKey) {
+    try {
+      console.log(`[LLM] Secondary path: Requesting analysis from Qwen 3.8 (${config.qwen.model})...`);
+      const qwenResponse = await callQwenChat([
+        {
+          role: 'system',
+          content: 'You are an expert scientific intelligence system. Return strictly a valid JSON object with keys: summary, methodology, contributions, limitations, futureWork, equation, equationTag, sectionTitle, sectionExcerpt. No markdown wrappers, no commentary.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]);
+      const parsed = parseJsonSafe(qwenResponse);
+      return {
+        summary: parsed.summary || '',
+        methodology: parsed.methodology || '',
+        contributions: parsed.contributions || '',
+        limitations: parsed.limitations || '',
+        futureWork: parsed.futureWork || parsed.future_work || '',
+        equation: parsed.equation || '∇_μ F^μν = 4π J^ν',
+        equationTag: parsed.equationTag || parsed.equation_tag || 'Eq. 1',
+        sectionTitle: parsed.sectionTitle || parsed.section_title || 'Core Theoretical Framework',
+        sectionExcerpt: parsed.sectionExcerpt || parsed.section_excerpt || 'Key mathematical derivation extracted from the document.'
+      };
+    } catch (qwenError) {
+      console.warn(`[LLM] Qwen 3.8 call failed: ${qwenError.message}`);
+    }
   }
+
+  return extractHeuristicSummary(chunks);
 };
 
 /**
@@ -296,41 +347,41 @@ const answerQuestion = async (question, retrievedChunks) => {
 
   const contextText = retrievedChunks.join('\n\n---\n\n');
   const prompt = `Context from paper:\n${contextText}\n\nQuestion: ${question}`;
+  const systemInstruction = "You are an expert AI research assistant. You answer questions strictly based on the provided paper context. If the answer is not in the context, say \"I don't know based on the provided paper.\" Do not hallucinate.";
 
-  // 1. Try Qwen 3.8 first
-  try {
-    console.log(`[LLM] Asking Qwen 3.8 (${config.qwen.model})...`);
-    const qwenAnswer = await callQwenChat([
-      {
-        role: 'system',
-        content: "You are an expert AI research assistant. You answer questions strictly based on the provided paper context. If the answer is not in the context, say \"I don't know based on the provided paper.\" Do not hallucinate."
-      },
-      {
-        role: 'user',
-        content: prompt
-      }
-    ]);
-    return qwenAnswer;
-  } catch (qwenError) {
-    console.warn(`[LLM] Qwen 3.8 call failed: ${qwenError.message}. Falling back to Gemini 2.5 Flash...`);
+  // 1. Fast Path: Try Gemini (~1.2s via Google's edge network)
+  if (config.gemini.apiKey) {
+    try {
+      console.log(`[LLM] Fast path: Querying Gemini (${config.gemini.model})...`);
+      const geminiAnswer = await callGeminiChat(prompt, systemInstruction);
+      return geminiAnswer;
+    } catch (geminiError) {
+      console.warn(`[LLM] Gemini call failed (${geminiError.message}). Falling back to Qwen 3.8...`);
+    }
   }
 
-  // 2. Fallback to Gemini 2.5 Flash
-  try {
-    const response = await ai.models.generateContent({
-      model: config.gemini.model,
-      contents: prompt,
-      config: {
-        temperature: 0.2,
-        systemInstruction: "You are an expert AI research assistant. You answer questions strictly based on the provided paper context. If the answer is not in the context, say \"I don't know based on the provided paper.\" Do not hallucinate."
-      }
-    });
-
-    return response.text;
-  } catch (error) {
-    console.warn('[LLM] Gemini answer unavailable, returning context excerpt:', error.message);
-    return `Based on relevant excerpts from the paper:\n\n${retrievedChunks[0]}`;
+  // 2. Secondary Path: Fallback to Qwen 3.8 on ModelScope
+  if (config.qwen.apiKey) {
+    try {
+      console.log(`[LLM] Secondary path: Querying Qwen 3.8 (${config.qwen.model})...`);
+      const qwenAnswer = await callQwenChat([
+        {
+          role: 'system',
+          content: systemInstruction
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]);
+      return qwenAnswer;
+    } catch (qwenError) {
+      console.warn(`[LLM] Qwen 3.8 call failed: ${qwenError.message}`);
+    }
   }
+
+  // 3. Fallback to matched excerpt if both LLMs are unavailable
+  return `Based on relevant excerpts from the paper:\n\n${retrievedChunks[0]}`;
 };
 
 module.exports = {

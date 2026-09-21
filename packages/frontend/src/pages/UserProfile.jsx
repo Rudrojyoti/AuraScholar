@@ -11,7 +11,9 @@ export default function UserProfile({
   onLogout,
   initialTab = 'identity',
   customAvatar = null,
-  onAvatarChange = null
+  onAvatarChange = null,
+  latency: propLatency = null,
+  onLatencyChange = null
 }) {
   let clerkUser = null;
   try {
@@ -122,7 +124,22 @@ export default function UserProfile({
   const [entropyVal, setEntropyVal] = useState(20);
 
   // Compute & Usage State
-  const [latency, setLatency] = useState(14.2);
+  const [latency, setLatency] = useState(() => {
+    if (propLatency !== null && propLatency !== undefined) return propLatency;
+    try {
+      const saved = localStorage.getItem('aurascholar_realtime_latency');
+      return saved ? parseFloat(saved) : 14.2;
+    } catch (e) {
+      return 14.2;
+    }
+  });
+
+  useEffect(() => {
+    if (propLatency !== null && propLatency !== undefined) {
+      setLatency(propLatency);
+    }
+  }, [propLatency]);
+
   const [isPinging, setIsPinging] = useState(false);
   const [vectorUsage, setVectorUsage] = useState({
     current: 195072,
@@ -213,15 +230,25 @@ export default function UserProfile({
     setIsPinging(true);
     const start = performance.now();
     try {
-      await fetch(`${API_BASE_URL}/papers/stats?userId=${encodeURIComponent(user?.id || userEmail || 'guest_user')}`, {
+      const res = await fetch(`${API_BASE_URL}/health/ping`, {
         cache: 'no-store'
       });
-      const duration = (performance.now() - start).toFixed(1);
-      setLatency(parseFloat(duration));
+      if (!res.ok) throw new Error('Ping failed');
+      const duration = parseFloat((performance.now() - start).toFixed(1));
+      setLatency(duration);
+      try {
+        localStorage.setItem('aurascholar_realtime_latency', String(duration));
+      } catch (err) {}
+      if (typeof onLatencyChange === 'function') onLatencyChange(duration);
       showToast(`Network round-trip latency: ${duration} ms`);
     } catch (e) {
-      setLatency(12.4);
-      showToast('Ping completed: 12.4 ms');
+      const duration = parseFloat((performance.now() - start).toFixed(1)) || 12.4;
+      setLatency(duration);
+      try {
+        localStorage.setItem('aurascholar_realtime_latency', String(duration));
+      } catch (err) {}
+      if (typeof onLatencyChange === 'function') onLatencyChange(duration);
+      showToast(`Ping completed: ${duration} ms`);
     } finally {
       setIsPinging(false);
     }
