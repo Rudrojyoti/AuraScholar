@@ -115,11 +115,13 @@ export default function UserProfile({
   const [geminiKey, setGeminiKey] = useState('');
   const [groqKey, setGroqKey] = useState('');
   const [anthropicKey, setAnthropicKey] = useState('');
+  const [nvidiaKey, setNvidiaKey] = useState('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');
   
   const [showQwenKey, setShowQwenKey] = useState(false);
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [showGroqKey, setShowGroqKey] = useState(false);
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
+  const [showNvidiaKey, setShowNvidiaKey] = useState(false);
 
   const [entropyVal, setEntropyVal] = useState(20);
 
@@ -317,6 +319,7 @@ export default function UserProfile({
         if (parsed.geminiKey && !parsed.geminiKey.includes('AIzaSyB8xQ91')) setGeminiKey(parsed.geminiKey);
         if (parsed.groqKey && !parsed.groqKey.includes('gsk_99a8bF21')) setGroqKey(parsed.groqKey);
         if (parsed.anthropicKey && !parsed.anthropicKey.includes('sk-ant-api03-8819')) setAnthropicKey(parsed.anthropicKey);
+        if (parsed.nvidiaKey) setNvidiaKey(parsed.nvidiaKey);
         if (parsed.entropyVal !== undefined) setEntropyVal(parsed.entropyVal);
         if (parsed.citationFormat) setCitationFormat(parsed.citationFormat);
         if (parsed.autoRenderLatex !== undefined) setAutoRenderLatex(parsed.autoRenderLatex);
@@ -452,6 +455,7 @@ export default function UserProfile({
       geminiKey,
       groqKey,
       anthropicKey,
+      nvidiaKey,
       entropyVal,
       citationFormat,
       autoRenderLatex,
@@ -1278,9 +1282,10 @@ export default function UserProfile({
                         }}
                         className="w-full px-4 py-2.5 rounded-xl bg-black/50 border border-white/10 focus-visible:border-cyan-400 text-xs sm:text-sm text-white outline-none appearance-none cursor-pointer"
                       >
+                        <option value="nvidia-llama-3.2-11b">NVIDIA NIM / Llama 3.2 11B Vision (Multimodal Reasoning &amp; Derivations)</option>
                         <option value="qwen-2.5-qwq">Qwen 2.5 / QwQ 32B (Deep Reasoning &amp; Formal Proofs)</option>
                         <option value="claude-3-7-sonnet">Claude 3.7 Sonnet (Extended Reasoning &amp; Derivations)</option>
-                        <option value="gemini-2-flash">Gemini 2.5 Flash (Fast Multimodal &amp; Search)</option>
+                        <option value="gemini-2-flash">Gemini 2.5 / 3.5 Flash (Fast Multimodal &amp; Search)</option>
                         <option value="groq-llama-70b">Groq LLaMA 3.3 70B (High-Speed Local Reasoning)</option>
                         <option value="deepseek-r1">DeepSeek R1 (Open Mathematical Proof Benchmark)</option>
                         <option value="multi-referee">Multi-Model Consensus (Cross-Engine Parallel Evaluation)</option>
@@ -1353,6 +1358,39 @@ export default function UserProfile({
                         <button
                           type="button"
                           onClick={() => setShowGeminiKey(!showGeminiKey)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                          title="Toggle visibility"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* NVIDIA NIM */}
+                    <div className="p-3.5 rounded-xl bg-black/20 border border-white/[0.06] space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-white font-display flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          NVIDIA NIM API Key (Llama 3.2 11B Vision)
+                        </span>
+                        <span className="text-[11px] font-mono text-emerald-400">
+                          {nvidiaKey ? 'Connected (BYOK)' : 'Connected (Server NIM Llama 3.2)'}
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showNvidiaKey ? 'text' : 'password'}
+                          value={nvidiaKey}
+                          onChange={(e) => setNvidiaKey(e.target.value)}
+                          placeholder="nvapi-..."
+                          className="w-full pl-3.5 pr-10 py-2 rounded-lg bg-black/40 border border-white/10 text-xs font-mono text-slate-200 outline-none focus-visible:border-cyan-400"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNvidiaKey(!showNvidiaKey)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
                           title="Toggle visibility"
                         >

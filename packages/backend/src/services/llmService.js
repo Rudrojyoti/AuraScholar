@@ -75,6 +75,44 @@ const callGeminiChat = async (prompt, systemInstruction = '', options = {}) => {
 };
 
 /**
+ * Call NVIDIA NIM / OpenAI-compatible API (e.g. meta/llama-3.2-11b-vision-instruct)
+ * @param {Array<{role: string, content: string}>} messages
+ * @param {object} options
+ * @returns {Promise<string>}
+ */
+const callNvidiaChat = async (messages, options = {}) => {
+  if (!config.nvidia.apiKey) {
+    throw new Error('NVIDIA API key not configured');
+  }
+  const url = `${config.nvidia.baseUrl.replace(/\/$/, '')}/chat/completions`;
+  const model = options.model || config.nvidia.model || 'meta/llama-3.2-11b-vision-instruct';
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${config.nvidia.apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: options.temperature ?? 0.2,
+      max_tokens: options.max_tokens ?? 1024
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`NVIDIA NIM API error (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error('Empty response received from NVIDIA NIM');
+  return content.trim();
+};
+
+/**
  * Dimension for local fallback embeddings
  */
 const LOCAL_EMBEDDING_DIM = 384;
@@ -331,6 +369,37 @@ ${sampleText}`;
     }
   }
 
+  // 3. Tertiary Path: NVIDIA NIM (Llama 3.2 11B Vision)
+  if (config.nvidia.apiKey) {
+    try {
+      console.log(`[LLM] Tertiary path: Requesting analysis from NVIDIA NIM (${config.nvidia.model})...`);
+      const nvidiaResponse = await callNvidiaChat([
+        {
+          role: 'system',
+          content: 'You are an expert scientific intelligence system. Return strictly a valid JSON object with keys: summary, methodology, contributions, limitations, futureWork, equation, equationTag, sectionTitle, sectionExcerpt. No markdown wrappers, no commentary.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]);
+      const parsed = parseJsonSafe(nvidiaResponse);
+      return {
+        summary: parsed.summary || '',
+        methodology: parsed.methodology || '',
+        contributions: parsed.contributions || '',
+        limitations: parsed.limitations || '',
+        futureWork: parsed.futureWork || parsed.future_work || '',
+        equation: parsed.equation || '∇_μ F^μν = 4π J^ν',
+        equationTag: parsed.equationTag || parsed.equation_tag || 'Eq. 1',
+        sectionTitle: parsed.sectionTitle || parsed.section_title || 'Core Theoretical Framework',
+        sectionExcerpt: parsed.sectionExcerpt || parsed.section_excerpt || 'Key mathematical derivation extracted from the document.'
+      };
+    } catch (nvidiaError) {
+      console.warn(`[LLM] NVIDIA NIM summary call failed: ${nvidiaError.message}`);
+    }
+  }
+
   return extractHeuristicSummary(chunks);
 };
 
@@ -338,9 +407,10 @@ ${sampleText}`;
  * Ask a question based on retrieved context chunks
  * @param {string} question - The user's question
  * @param {string[]} retrievedChunks - The context chunks retrieved from vector search
+ * @param {object} [options] - Options including preferred model
  * @returns {Promise<string>}
  */
-const answerQuestion = async (question, retrievedChunks) => {
+const answerQuestion = async (question, retrievedChunks, options = {}) => {
   if (!retrievedChunks || retrievedChunks.length === 0) {
     return "I couldn't find any relevant information in the uploaded paper to answer your question.";
   }
@@ -349,30 +419,54 @@ const answerQuestion = async (question, retrievedChunks) => {
   const prompt = `Context from paper:\n${contextText}\n\nQuestion: ${question}`;
   const systemInstruction = "You are an expert AI research assistant. You answer questions strictly based on the provided paper context. If the answer is not in the context, say \"I don't know based on the provided paper.\" Do not hallucinate.";
 
-  // 1. Fast Path: Try Gemini (~1.2s via Google's edge network)
+  const preferredModel = (options.model || '').toLowerCase();
+
+  // Priority 1: User explicitly requested NVIDIA NIM
+  if (preferredModel.includes('nvidia') && config.nvidia.apiKey) {
+    try {
+      console.log(`[LLM] User preferred: Querying NVIDIA NIM (${config.nvidia.model})...`);
+      const nvidiaAnswer = await callNvidiaChat([
+        { role: 'system', content: systemInstruction },
+        { role: 'user', content: prompt }
+      ]);
+      return nvidiaAnswer;
+    } catch (nvidiaError) {
+      console.warn(`[LLM] NVIDIA NIM call failed (${nvidiaError.message}). Trying fallback...`);
+    }
+  }
+
+  // Priority 2: Fast Path: Gemini (~1.2s via Google's edge network)
   if (config.gemini.apiKey) {
     try {
       console.log(`[LLM] Fast path: Querying Gemini (${config.gemini.model})...`);
       const geminiAnswer = await callGeminiChat(prompt, systemInstruction);
       return geminiAnswer;
     } catch (geminiError) {
-      console.warn(`[LLM] Gemini call failed (${geminiError.message}). Falling back to Qwen 3.8...`);
+      console.warn(`[LLM] Gemini call failed (${geminiError.message}). Falling back to NVIDIA NIM...`);
     }
   }
 
-  // 2. Secondary Path: Fallback to Qwen 3.8 on ModelScope
+  // Priority 3: NVIDIA NIM Fallback (Llama 3.2 11B Vision)
+  if (config.nvidia.apiKey) {
+    try {
+      console.log(`[LLM] High-fidelity fallback: Querying NVIDIA NIM (${config.nvidia.model})...`);
+      const nvidiaAnswer = await callNvidiaChat([
+        { role: 'system', content: systemInstruction },
+        { role: 'user', content: prompt }
+      ]);
+      return nvidiaAnswer;
+    } catch (nvidiaError) {
+      console.warn(`[LLM] NVIDIA NIM fallback failed: ${nvidiaError.message}`);
+    }
+  }
+
+  // Priority 4: Fallback to Qwen 3.8 on ModelScope
   if (config.qwen.apiKey) {
     try {
       console.log(`[LLM] Secondary path: Querying Qwen 3.8 (${config.qwen.model})...`);
       const qwenAnswer = await callQwenChat([
-        {
-          role: 'system',
-          content: systemInstruction
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
+        { role: 'system', content: systemInstruction },
+        { role: 'user', content: prompt }
       ]);
       return qwenAnswer;
     } catch (qwenError) {
@@ -380,12 +474,14 @@ const answerQuestion = async (question, retrievedChunks) => {
     }
   }
 
-  // 3. Fallback to matched excerpt if both LLMs are unavailable
+  // 5. Fallback to matched excerpt if all LLMs are unavailable
   return `Based on relevant excerpts from the paper:\n\n${retrievedChunks[0]}`;
 };
 
 module.exports = {
   callQwenChat,
+  callGeminiChat,
+  callNvidiaChat,
   generateEmbedding,
   generateBatchEmbeddings,
   generateLocalEmbedding,

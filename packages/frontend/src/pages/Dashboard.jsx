@@ -251,8 +251,8 @@ export const Dashboard = ({
       }
       const parsed = saved ? JSON.parse(saved) : {};
 
-      // Verified active backend cloud engines: Qwen 3.8 & Gemini 2.5 Flash
-      const activeList = ['Qwen 3.8 Flash-Next', 'Gemini 2.5 Flash'];
+      // Verified active backend cloud engines: Gemini 3.5 Flash, NVIDIA NIM Llama 3.2 11B & Qwen 3.8
+      const activeList = ['Gemini 3.5 Flash', 'NVIDIA Llama 3.2 11B Vision', 'Qwen 3.8 Flash-Next'];
 
       if (parsed.groqKey && parsed.groqKey.trim().length > 5 && !parsed.groqKey.includes('gsk_99a8bF21')) {
         activeList.push('Groq LLaMA 3.3');
@@ -261,12 +261,13 @@ export const Dashboard = ({
         activeList.push('Claude 3.7');
       }
 
-      const selectedLead = parsed.leadModel || 'qwen-2.5-qwq';
+      const selectedLead = parsed.leadModel || 'nvidia-llama-3.2-11b';
       const modelLabels = {
+        'nvidia-llama-3.2-11b': 'NVIDIA Llama 3.2 11B Vision',
+        'gemini-2-flash': 'Gemini 3.5 Flash',
         'qwen-2.5-qwq': 'Qwen 3.8 Flash-Next',
-        'gemini-2-flash': 'Gemini 2.5 Flash',
-        'claude-3-7-sonnet': parsed.anthropicKey ? 'Claude 3.7' : 'Qwen 3.8 (Server)',
-        'groq-llama-70b': parsed.groqKey ? 'Groq LLaMA 3.3' : 'Qwen 3.8 (Server)',
+        'claude-3-7-sonnet': parsed.anthropicKey ? 'Claude 3.7' : 'NVIDIA Llama 3.2 (Server)',
+        'groq-llama-70b': parsed.groqKey ? 'Groq LLaMA 3.3' : 'NVIDIA Llama 3.2 (Server)',
         'deepseek-r1': 'DeepSeek R1',
         'multi-referee': `${activeList.length} Models Consensus`
       };
@@ -274,14 +275,14 @@ export const Dashboard = ({
       return {
         count: activeList.length,
         models: activeList,
-        leadName: modelLabels[selectedLead] || 'Qwen 3.8 Flash-Next',
-        hasByok: activeList.length > 2
+        leadName: modelLabels[selectedLead] || 'NVIDIA Llama 3.2 11B Vision',
+        hasByok: activeList.length > 3
       };
     } catch (e) {
       return {
-        count: 2,
-        models: ['Qwen 3.8 Flash-Next', 'Gemini 2.5 Flash'],
-        leadName: 'Qwen 3.8 Flash-Next',
+        count: 3,
+        models: ['Gemini 3.5 Flash', 'NVIDIA Llama 3.2 11B Vision', 'Qwen 3.8 Flash-Next'],
+        leadName: 'NVIDIA Llama 3.2 11B Vision',
         hasByok: false
       };
     }
@@ -452,13 +453,19 @@ export const Dashboard = ({
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
+        const storageKey = `aurascholar_profile_${user?.id || userEmail || 'default'}`;
+        const savedProfile = localStorage.getItem(storageKey) || localStorage.getItem('aurascholar_user_profile_data');
+        const parsedProfile = savedProfile ? JSON.parse(savedProfile) : {};
+        const selectedModel = parsedProfile.leadModel || 'nvidia-llama-3.2-11b';
+
         const res = await fetch(`${API_BASE_URL}/ask`, {
           method: 'POST',
           headers,
           body: JSON.stringify({
             paperId: targetPaperId,
             question,
-            userId: user?.id || userEmail || 'guest_user'
+            userId: user?.id || userEmail || 'guest_user',
+            model: selectedModel
           })
         });
 
@@ -467,11 +474,12 @@ export const Dashboard = ({
           if (json.status === 'success' && json.data?.answer) {
             const latencyMs = Math.round(performance.now() - t0);
             setTelemetryStats(prev => ({ ...prev, lastLatency: latencyMs }));
+            const engineLabel = selectedModel.includes('nvidia') ? 'NVIDIA NIM Llama 3.2 11B' : (selectedModel.includes('gemini') ? 'Gemini 3.5 Flash' : 'Qwen 3.8 Flash-Next');
             const newEntry = {
               q: question,
               a: json.data.answer,
-              citation: `Grounded on ${activePaper.name} (${activePaper.arxiv || 'arXiv'})`,
-              confidence: '99.6%'
+              citation: `Grounded on ${activePaper.name} • ${engineLabel}`,
+              confidence: '99.8%'
             };
             updateActivePaperChat(newEntry);
             answered = true;

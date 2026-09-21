@@ -4,7 +4,7 @@ const paperStore = require('../services/paperStore');
 
 const askQuestion = async (req, res) => {
   try {
-    const { paperId, question } = req.body;
+    const { paperId, question, model } = req.body;
     const userId = req.auth?.userId || req.body.userId || 'guest_user';
 
     if (!paperId || !question) {
@@ -36,8 +36,8 @@ const askQuestion = async (req, res) => {
       retrievedChunks = fallbackMeta;
     }
 
-    // 2. Answer question with Qwen 3.8 / Gemini fallback
-    const answer = await llmService.answerQuestion(question, retrievedChunks);
+    // 2. Answer question with requested model (NVIDIA NIM / Gemini / Qwen)
+    const answer = await llmService.answerQuestion(question, retrievedChunks, { model });
 
     return res.status(200).json({
       status: 'success',

@@ -19,6 +19,11 @@ module.exports = {
     apiKey: process.env.GROQ_API_KEY,
     model: 'llama-3.1-70b-versatile'
   },
+  nvidia: {
+    baseUrl: process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1',
+    apiKey: process.env.NVIDIA_API_KEY,
+    model: process.env.NVIDIA_MODEL || 'meta/llama-3.2-11b-vision-instruct'
+  },
   clerk: {
     secretKey: process.env.CLERK_SECRET_KEY
   },
