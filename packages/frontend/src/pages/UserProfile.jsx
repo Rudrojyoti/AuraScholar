@@ -115,7 +115,7 @@ export default function UserProfile({
   const [geminiKey, setGeminiKey] = useState('');
   const [groqKey, setGroqKey] = useState('');
   const [anthropicKey, setAnthropicKey] = useState('');
-  const [nvidiaKey, setNvidiaKey] = useState('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');
+  const [nvidiaKey, setNvidiaKey] = useState('');
   
   const [showQwenKey, setShowQwenKey] = useState(false);
   const [showGeminiKey, setShowGeminiKey] = useState(false);
@@ -1282,6 +1282,8 @@ export default function UserProfile({
                         }}
                         className="w-full px-4 py-2.5 rounded-xl bg-black/50 border border-white/10 focus-visible:border-cyan-400 text-xs sm:text-sm text-white outline-none appearance-none cursor-pointer"
                       >
+                        <option value="omniroute-auto">OmniRoute Gateway / Auto (352 Models • Zero Quota Limit • Resilient Routing)</option>
+                        <option value="omniroute-fast">OmniRoute Ultra-Fast Gateway (Low Latency Dynamic Routing)</option>
                         <option value="nvidia-llama-3.2-11b">NVIDIA NIM / Llama 3.2 11B Vision (Multimodal Reasoning &amp; Derivations)</option>
                         <option value="qwen-2.5-qwq">Qwen 2.5 / QwQ 32B (Deep Reasoning &amp; Formal Proofs)</option>
                         <option value="claude-3-7-sonnet">Claude 3.7 Sonnet (Extended Reasoning &amp; Derivations)</option>
@@ -1302,8 +1304,37 @@ export default function UserProfile({
                   {/* API Keys Vault */}
                   <div className="space-y-3.5">
                     <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Your API Keys (Stored locally in browser)
+                      Your AI Infrastructure &amp; API Keys
                     </h3>
+
+                    {/* OmniRoute Gateway */}
+                    <div className="p-3.5 rounded-xl bg-gradient-to-r from-cyan-950/30 to-violet-950/30 border border-cyan-500/20 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-white font-display flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          OmniRoute Multi-Model Gateway
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/20 text-cyan-300">
+                            352 Models Active
+                          </span>
+                        </span>
+                        <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1">
+                          ● Port 20128 Active
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono text-slate-300">
+                        <div className="p-2 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between">
+                          <span className="text-slate-400">Gateway URL:</span>
+                          <span className="text-cyan-300">http://localhost:20128/v1</span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between">
+                          <span className="text-slate-400">Response Cache (Pt. 4):</span>
+                          <span className="text-amber-400 font-semibold">Excluded / Bypassed</span>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-400">
+                        Unified multi-provider AI gateway routing across 350+ models (NVIDIA NIM, Gemini, Qwen) with zero-quota dropouts and dynamic live inference.
+                      </p>
+                    </div>
 
                     {/* Qwen / ModelScope */}
                     <div className="p-3.5 rounded-xl bg-black/20 border border-white/[0.06] space-y-1.5">

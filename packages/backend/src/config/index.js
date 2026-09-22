@@ -24,6 +24,11 @@ module.exports = {
     apiKey: process.env.NVIDIA_API_KEY,
     model: process.env.NVIDIA_MODEL || 'meta/llama-3.2-11b-vision-instruct'
   },
+  omniroute: {
+    baseUrl: process.env.OMNIROUTE_BASE_URL || 'http://localhost:20128/v1',
+    apiKey: process.env.OMNIROUTE_API_KEY || '',
+    model: process.env.OMNIROUTE_MODEL || 'auto'
+  },
   clerk: {
     secretKey: process.env.CLERK_SECRET_KEY
   },

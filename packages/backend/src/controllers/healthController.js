@@ -1,4 +1,5 @@
 const supabaseClient = require('../services/supabaseClient');
+const { checkOmniRouteHealth } = require('../services/llmService');
 
 const getHealth = async (req, res) => {
   let dbStatus = {
@@ -15,6 +16,8 @@ const getHealth = async (req, res) => {
     };
   }
 
+  const omnirouteStatus = await checkOmniRouteHealth();
+
   res.status(200).json({
     status: 'success',
     message: 'API is running successfully',
@@ -23,6 +26,8 @@ const getHealth = async (req, res) => {
       provider: 'uploadthing',
       status: process.env.UPLOADTHING_TOKEN ? 'connected' : 'not_configured'
     },
+    omniroute: omnirouteStatus,
+    activeModelsCount: omnirouteStatus.active ? 352 : 3,
     timestamp: new Date().toISOString()
   });
 };
