@@ -75,11 +75,81 @@ const initialPapers = [
     summary: "Framework combining a pre-trained sequence-to-sequence model (BART) with an external dense retrieval index (DPR). Reduces factual hallucinations on Natural Questions and TriviaQA benchmarks.",
     methodology: "Dense passage retrieval via bi-encoder, combined with marginal likelihood generation across retrieved documents.",
     contributions: "First end-to-end differentiable RAG framework; proven reduction in factual errors over purely parametric models.",
-    limitations: "High retrieval latency overhead; dependency on index staleness and embedding drift.",
     futureWork: "Iterative multi-hop document retrieval and real-time index re-ranking.",
     qaHistory: []
   }
 ];
+
+export const formatMathEquation = (rawEq) => {
+  if (!rawEq || /^(n\/?a|none|null|undefined|nil|unspecified)$/i.test(String(rawEq).trim())) {
+    return "Outcome = α + β₁(Predictors) + β₂(Moderators) + ε";
+  }
+  let eq = String(rawEq).trim();
+
+  // Strip wrapping LaTeX environments \begin{equation} or \[ \] or \( \)
+  eq = eq.replace(/\\begin\{equation\*?\}/gi, '').replace(/\\end\{equation\*?\}/gi, '');
+  eq = eq.replace(/^\\\[\s*/, '').replace(/\s*\\\]$/, '');
+  eq = eq.replace(/^\\\(\s*/, '').replace(/\s*\\\)$/, '');
+
+  // Strip \text{...}, \mathrm{...}, \mathbf{...}, \mathit{...}
+  eq = eq.replace(/\\(?:text|mathrm|mathbf|mathit|textsf|boldsymbol)\{([^}]+)\}/gi, '$1');
+
+  // Heal ASCII control characters (\x08 = backspace, \x09 = tab, etc.) caused by unescaped JSON parsing
+  eq = eq.replace(/[\x08\uFFFD\uD800-\uDFFF\uDB40-\uDC00]?eta_0|\\beta_0|\\beta_\{0\}|\bbeta_0\b/gi, 'β₀');
+  eq = eq.replace(/[\x08\uFFFD\uD800-\uDFFF\uDB40-\uDC00]?eta_1|\\beta_1|\\beta_\{1\}|\bbeta_1\b/gi, 'β₁');
+  eq = eq.replace(/[\x08\uFFFD\uD800-\uDFFF\uDB40-\uDC00]?eta_2|\\beta_2|\\beta_\{2\}|\bbeta_2\b/gi, 'β₂');
+  eq = eq.replace(/[\x08\uFFFD\uD800-\uDFFF\uDB40-\uDC00]?eta_3|\\beta_3|\\beta_\{3\}|\bbeta_3\b/gi, 'β₃');
+  eq = eq.replace(/[\x08\uFFFD\uD800-\uDFFF\uDB40-\uDC00]?eta_4|\\beta_4|\\beta_\{4\}|\bbeta_4\b/gi, 'β₄');
+  eq = eq.replace(/[\x08\uFFFD\uD800-\uDFFF\uDB40-\uDC00]?eta_i|\\beta_i|\\beta_\{i\}|\bbeta_i\b/gi, 'βᵢ');
+  eq = eq.replace(/[\x08\uFFFD\uD800-\uDFFF\uDB40-\uDC00]?eta\b|\\beta\b|\bbeta\b/gi, 'β');
+
+  // \x09heta -> theta, \x09imes -> times, \x09au -> tau
+  eq = eq.replace(/[\x09]?heta\b|\\theta\b|\btheta\b/gi, 'θ');
+  eq = eq.replace(/[\x09]?imes\b|\\times\b|\btimes\b/gi, '×');
+  eq = eq.replace(/[\x09]?au\b|\\tau\b|\btau\b/gi, 'τ');
+  eq = eq.replace(/[\x09]?ext\{([^}]*)\}/gi, '$1');
+
+  // Alpha
+  eq = eq.replace(/\\alpha_0|\\alpha_\{0\}|\balpha_0\b/gi, 'α₀');
+  eq = eq.replace(/\\alpha_1|\\alpha_\{1\}|\balpha_1\b/gi, 'α₁');
+  eq = eq.replace(/\\alpha\b|\balpha\b/gi, 'α');
+
+  // Gamma, Delta, Epsilon, etc.
+  eq = eq.replace(/\\gamma\b|\bgamma\b/gi, 'γ');
+  eq = eq.replace(/\\delta\b|\bdelta\b/gi, 'δ');
+  eq = eq.replace(/\\epsilon\b|\\varepsilon\b|\bepsilon\b/gi, 'ε');
+  eq = eq.replace(/\\lambda\b|\blambda\b/gi, 'λ');
+  eq = eq.replace(/\\sigma\b|\bsigma\b/gi, 'σ');
+  eq = eq.replace(/\\mu\b|\bmu\b/gi, 'μ');
+  eq = eq.replace(/\\pi\b|\bpi\b/gi, 'π');
+  eq = eq.replace(/\\rho\b|\brho\b/gi, 'ρ');
+  eq = eq.replace(/\\phi\b|\bphi\b/gi, 'φ');
+  eq = eq.replace(/\\omega\b|\bomega\b/gi, 'ω');
+  eq = eq.replace(/\\nabla\b|\bnabla\b/gi, '∇');
+  eq = eq.replace(/\\sum\b|\bsum\b/gi, '∑');
+  eq = eq.replace(/\\prod\b|\bprod\b/gi, '∏');
+  eq = eq.replace(/\\int\b|\bint\b/gi, '∫');
+  eq = eq.replace(/\\cdot\b/gi, '·');
+  eq = eq.replace(/\\approx\b/gi, '≈');
+  eq = eq.replace(/\\neq\b/gi, '≠');
+  eq = eq.replace(/\\leq\b/gi, '≤');
+  eq = eq.replace(/\\geq\b/gi, '≥');
+  eq = eq.replace(/\\to\b|\\rightarrow\b/gi, '→');
+  eq = eq.replace(/\\sqrt\{([^}]+)\}/gi, '√($1)');
+  eq = eq.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/gi, '($1 / $2)');
+
+  // Clean trailing backslashes or redundant spaces
+  eq = eq.replace(/\\([a-zA-Z]+)/g, '$1');
+  eq = eq.replace(/\\/g, '');
+  return eq.replace(/\s+/g, ' ').trim();
+};
+
+export const formatMathTag = (rawTag) => {
+  if (!rawTag || /^(n\/?a|none|null|undefined|nil|unspecified)$/i.test(String(rawTag).trim())) {
+    return "Derived Eq. 1";
+  }
+  return String(rawTag).trim();
+};
 
 export const Dashboard = ({
   user = null,
@@ -139,9 +209,9 @@ export const Dashboard = ({
             status: 'Ready',
             date: p.createdAt ? new Date(p.createdAt).toLocaleDateString() : 'Persisted',
             starred: false,
-            equation: p.equation || "Attention(Q, K, V) = softmax( (QKᵀ) / √dₖ ) V",
-            equationTag: p.equationTag || "Eq. 1",
-            sectionTitle: p.sectionTitle || "Core Theoretical Framework",
+            equation: (p.equation && !/^(n\/?a|none|null|undefined)$/i.test(String(p.equation).trim())) ? p.equation : "Outcome = \\alpha + \\beta_1(\\text{Predictor}) + \\beta_2(\\text{Moderator}) + \\epsilon",
+            equationTag: (p.equationTag && !/^(n\/?a|none|null|undefined)$/i.test(String(p.equationTag).trim())) ? p.equationTag : "Derived Eq. 1",
+            sectionTitle: (p.sectionTitle && !/^(n\/?a|none|null)$/i.test(String(p.sectionTitle).trim())) ? p.sectionTitle : "Core Theoretical Framework",
             sectionExcerpt: p.sectionExcerpt || (p.summary ? (p.summary.slice(0, 150) + '...') : 'Extracted from persistent storage.'),
             summary: p.summary || 'Summary unavailable.',
             methodology: p.methodology || 'Methodology details unavailable.',
@@ -345,14 +415,41 @@ export const Dashboard = ({
         console.warn('UploadThing CDN direct upload skipped, using fallback:', utErr.message);
       }
 
-      setUploadStatus('Extracting sections & synthesizing with Qwen 3.8...');
+      const storageKey = `aurascholar_profile_${user?.id || userEmail || 'default'}`;
+      const savedProfile = localStorage.getItem(storageKey) || localStorage.getItem('aurascholar_user_profile_data');
+      const parsedProfile = savedProfile ? JSON.parse(savedProfile) : {};
+      const selectedModel = parsedProfile.leadModel || 'omniroute-auto';
+      const userKeys = {
+        groqKey: parsedProfile.groqKey,
+        anthropicKey: parsedProfile.anthropicKey,
+        deepseekKey: parsedProfile.deepseekKey,
+        qwenKey: parsedProfile.qwenKey,
+        nvidiaKey: parsedProfile.nvidiaKey,
+        geminiKey: parsedProfile.geminiKey
+      };
+
+      const modelDisplayName = {
+        'omniroute-auto': 'OmniRoute Gateway',
+        'omniroute-fast': 'OmniRoute Ultra-Fast',
+        'nvidia-llama-3.2-11b': 'NVIDIA NIM Llama 3.2 11B',
+        'qwen-2.5-qwq': 'Qwen 2.5 / QwQ 32B',
+        'claude-3-7-sonnet': 'Claude 3.7 Sonnet',
+        'gemini-2-flash': 'Gemini 3.5 Flash',
+        'groq-llama-70b': 'Groq LLaMA 3.3 70B',
+        'deepseek-r1': 'DeepSeek R1',
+        'multi-referee': 'Multi-Model Consensus'
+      }[selectedModel] || 'OmniRoute Gateway';
+
+      setUploadStatus(`Extracting sections & synthesizing with ${modelDisplayName}...`);
       const token = getToken ? await getToken() : null;
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
       let bodyPayload = {
         paperName,
-        userId: user?.id || userEmail || 'researcher'
+        userId: user?.id || userEmail || 'researcher',
+        model: selectedModel,
+        userKeys
       };
 
       if (cloudFileUrl) {
@@ -391,9 +488,15 @@ export const Dashboard = ({
         status: 'Ready',
         date: 'Synthesized just now',
         starred: false,
-        equation: data?.data?.equation || "Attention(Q, K, V) = softmax( (QKᵀ) / √dₖ ) V",
-        equationTag: data?.data?.equationTag || "Eq. 1",
-        sectionTitle: data?.data?.sectionTitle || "1.0 Core Theoretical Framework",
+        equation: (data?.data?.equation && !/^(n\/?a|none|null|undefined)$/i.test(String(data.data.equation).trim()))
+          ? data.data.equation
+          : "Outcome = \\alpha + \\beta_1(\\text{Theoretical Antecedents}) + \\beta_2(\\text{Empirical Methodology}) + \\epsilon",
+        equationTag: (data?.data?.equationTag && !/^(n\/?a|none|null|undefined)$/i.test(String(data.data.equationTag).trim()))
+          ? data.data.equationTag
+          : "Derived Eq. 1",
+        sectionTitle: (data?.data?.sectionTitle && !/^(n\/?a|none|null)$/i.test(String(data.data.sectionTitle).trim()))
+          ? data.data.sectionTitle
+          : "1.0 Core Theoretical Framework",
         sectionExcerpt: data?.data?.sectionExcerpt || (data?.data?.summary ? (data.data.summary.slice(0, 140) + '...') : 'Key mathematical derivation extracted from the document.'),
         summary: data?.data?.summary || 'Summary generated from the uploaded document.',
         methodology: data?.data?.methodology || 'Methodology extracted from the document.',
@@ -465,7 +568,15 @@ export const Dashboard = ({
         const storageKey = `aurascholar_profile_${user?.id || userEmail || 'default'}`;
         const savedProfile = localStorage.getItem(storageKey) || localStorage.getItem('aurascholar_user_profile_data');
         const parsedProfile = savedProfile ? JSON.parse(savedProfile) : {};
-        const selectedModel = parsedProfile.leadModel || 'nvidia-llama-3.2-11b';
+        const selectedModel = parsedProfile.leadModel || 'omniroute-auto';
+        const userKeys = {
+          groqKey: parsedProfile.groqKey,
+          anthropicKey: parsedProfile.anthropicKey,
+          deepseekKey: parsedProfile.deepseekKey,
+          qwenKey: parsedProfile.qwenKey,
+          nvidiaKey: parsedProfile.nvidiaKey,
+          geminiKey: parsedProfile.geminiKey
+        };
 
         const res = await fetch(`${API_BASE_URL}/ask`, {
           method: 'POST',
@@ -474,7 +585,8 @@ export const Dashboard = ({
             paperId: targetPaperId,
             question,
             userId: user?.id || userEmail || 'guest_user',
-            model: selectedModel
+            model: selectedModel,
+            userKeys
           })
         });
 
@@ -483,7 +595,18 @@ export const Dashboard = ({
           if (json.status === 'success' && json.data?.answer) {
             const latencyMs = Math.round(performance.now() - t0);
             setTelemetryStats(prev => ({ ...prev, lastLatency: latencyMs }));
-            const engineLabel = selectedModel.includes('omniroute') ? 'OmniRoute Multi-Model Gateway' : (selectedModel.includes('nvidia') ? 'NVIDIA NIM Llama 3.2 11B' : (selectedModel.includes('gemini') ? 'Gemini 3.5 Flash' : 'Qwen 3.8 Flash-Next'));
+            const fallbackLabels = {
+              'omniroute-auto': 'OmniRoute Gateway (Auto 352 Models)',
+              'omniroute-fast': 'OmniRoute Ultra-Fast Gateway',
+              'nvidia-llama-3.2-11b': 'NVIDIA NIM Llama 3.2 11B Vision',
+              'qwen-2.5-qwq': 'Qwen 2.5 / QwQ 32B (ModelScope)',
+              'claude-3-7-sonnet': 'Claude 3.7 Sonnet',
+              'gemini-2-flash': 'Google Gemini 3.5 Flash',
+              'groq-llama-70b': 'Groq LLaMA 3.3 70B',
+              'deepseek-r1': 'DeepSeek R1',
+              'multi-referee': 'Multi-Model Consensus Engine'
+            };
+            const engineLabel = json.data?.engineLabel || fallbackLabels[selectedModel] || 'OmniRoute Multi-Model Gateway';
             const newEntry = {
               q: question,
               a: json.data.answer,
@@ -1154,12 +1277,12 @@ export const Dashboard = ({
                   </p>
 
                   {/* Math Equation Display Box */}
-                  <div className="p-4 rounded-xl bg-surface-container-low/90 border border-outline-variant/50 font-code-sm text-primary my-4 flex items-center justify-between shadow-inner">
-                    <span className="font-mono text-xs sm:text-sm font-semibold text-primary">
-                      {activePaper.equation || 'Attention(Q, K, V) = softmax( (QKᵀ) / √dₖ ) V'}
+                  <div className="p-4 rounded-xl bg-surface-container-low/90 border border-outline-variant/50 font-code-sm text-primary my-4 flex items-center justify-between shadow-inner gap-3">
+                    <span className="font-mono text-xs sm:text-sm font-semibold text-primary leading-relaxed break-words">
+                      {formatMathEquation(activePaper.equation)}
                     </span>
-                    <span className="px-2 py-0.5 rounded bg-surface-container-highest text-[10px] text-outline font-mono">
-                      {activePaper.equationTag || 'Eq. 1'}
+                    <span className="px-2 py-0.5 rounded bg-surface-container-highest text-[10px] text-outline font-mono shrink-0 ml-2">
+                      {formatMathTag(activePaper.equationTag)}
                     </span>
                   </div>
 

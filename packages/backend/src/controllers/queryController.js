@@ -4,7 +4,7 @@ const paperStore = require('../services/paperStore');
 
 const askQuestion = async (req, res) => {
   try {
-    const { paperId, question, model } = req.body;
+    const { paperId, question, model, userKeys } = req.body;
     const userId = req.auth?.userId || req.body.userId || 'guest_user';
 
     if (!paperId || !question) {
@@ -36,12 +36,19 @@ const askQuestion = async (req, res) => {
       retrievedChunks = fallbackMeta;
     }
 
-    // 2. Answer question with requested model (NVIDIA NIM / Gemini / Qwen)
-    const answer = await llmService.answerQuestion(question, retrievedChunks, { model });
+    // 2. Answer question with user's selected model and BYOK keys
+    const result = await llmService.answerQuestion(question, retrievedChunks, { model, userKeys });
+    const answerText = typeof result === 'string' ? result : result.answer;
+    const engineLabel = result.engineLabel || 'AI Research Assistant';
+    const modelUsed = result.modelUsed || model;
 
     return res.status(200).json({
       status: 'success',
-      data: { answer }
+      data: {
+        answer: answerText,
+        engineLabel,
+        modelUsed
+      }
     });
 
   } catch (error) {

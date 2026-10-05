@@ -5,7 +5,7 @@ const paperStore = require('../services/paperStore');
 
 const uploadPdf = async (req, res) => {
   try {
-    const { fileUrl, paperName, fileBase64 } = req.body;
+    const { fileUrl, paperName, fileBase64, model, userKeys } = req.body;
     const userId = req.auth?.userId || req.body.userId || 'guest_user';
 
     if (!paperName || (!fileUrl && !fileBase64)) {
@@ -45,8 +45,8 @@ const uploadPdf = async (req, res) => {
     // Store chunks in Vector Store (MongoDB Atlas or In-Memory)
     await vectorService.storeChunks(paper._id, chunks);
 
-    // Generate initial summary using Qwen 3.8 / Gemini fallback
-    const initialData = await llmService.generateQuickSummary(chunks);
+    // Generate initial summary using requested model (OmniRoute / NVIDIA NIM / Qwen / Gemini)
+    const initialData = await llmService.generateQuickSummary(chunks, { model, userKeys });
 
     // Update Paper with summary and extracted formula details
     paper.summary = initialData.summary;

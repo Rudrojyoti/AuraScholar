@@ -1327,8 +1327,8 @@ export default function UserProfile({
                           <span className="text-cyan-300">http://localhost:20128/v1</span>
                         </div>
                         <div className="p-2 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between">
-                          <span className="text-slate-400">Response Cache (Pt. 4):</span>
-                          <span className="text-amber-400 font-semibold">Excluded / Bypassed</span>
+                          <span className="text-slate-400">Inference Mode:</span>
+                          <span className="text-emerald-400 font-medium">Live Dynamic Reasoning</span>
                         </div>
                       </div>
                       <p className="text-[10px] text-slate-400">
